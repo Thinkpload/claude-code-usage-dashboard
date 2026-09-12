@@ -29,3 +29,6 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Local agent instructions, not part of the project
+CLAUDE.md
