@@ -1,0 +1,45 @@
+name: Demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # The demo ends on the day it is built, so rebuild it weekly to keep the dates current.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The demo is generated, not committed: it ends on the day it is built, so the showcase
+      # never looks abandoned.
+      - name: Build the demo
+        run: |
+          mkdir -p _site
+          python demo/make_demo.py --strict --out _site/index.html
+          python demo/make_demo.py --strict --lang ru --out _site/ru.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

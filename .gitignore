@@ -16,7 +16,9 @@ template.bak.html
 
 # Generated demo output (rebuilt by CI; keep the generator, not the artefact)
 demo/index.html
-demo/data.json
+demo/index.ru.html
+demo/_build/
+_site/
 
 __pycache__/
 *.pyc

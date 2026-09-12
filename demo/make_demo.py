@@ -156,6 +156,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lang", default="en")
     ap.add_argument("--out", default=os.path.join(HERE, "index.html"))
+    ap.add_argument("--strict", action="store_true", help="fail if the translation table has drifted from the template")
     args = ap.parse_args()
 
     cfg = dict(ur.DEFAULT_CONFIG)
@@ -198,7 +199,9 @@ def main():
     shutil.copyfile(paths[0], args.out)
     shutil.rmtree(out_dir, ignore_errors=True)
     if missing:
-        print(f"warning: {len(missing)} translation entries no longer match the template")
+        print(f"{len(missing)} translation entries no longer match the template, e.g. {missing[0][:70]!r}")
+        if args.strict:
+            raise SystemExit(1)
     print(f"{args.out} ({os.path.getsize(args.out) // 1024} KB), {len(history['days'])} days, lang={args.lang}")
 
 

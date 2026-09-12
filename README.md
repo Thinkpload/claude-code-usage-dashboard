@@ -1,0 +1,138 @@
+# Claude Code usage dashboard
+
+A single self-contained HTML page that answers the questions `/usage` does not: where your Claude
+Code hours actually went, which projects ate them, and whether this week's pace lands you on the
+weekly limit or wastes half of it.
+
+It reads the session logs Claude Code already writes to `~/.claude/projects/**/*.jsonl`. No account,
+no API key, no network. One Python file, no dependencies.
+
+**[→ Open the live demo](https://thinkpload.github.io/claude-code-usage-dashboard/)** (invented data, the real page)
+
+![The dashboard](docs/screenshot.png)
+
+*[Русская версия README](README.ru.md)*
+
+## What it tells you
+
+- **Am I going to hit the weekly limit?** A calibrated gauge, not a guess: `k = actual ÷ plan`, where
+  the plan follows *when you actually work* rather than the calendar. It says things like "you will
+  hit the limit on Wednesday around 11:00 and be without it for 1 d 8 h."
+- **Where did the time go?** Active hours per project, grouped three ways (main work / work misc /
+  personal), by day, by month, and as a weekday × hour heatmap.
+- **What is the spend made of?** Tokens by model, by context size, by effort level, by skill text
+  sitting in context, by subagent, by cold session start — each with a concrete suggestion.
+- **Did any of it ship?** Commits from your local repos overlaid on the same timeline.
+
+## Quick start
+
+```bash
+git clone https://github.com/Thinkpload/claude-code-usage-dashboard
+cd claude-code-usage-dashboard
+python usage_report.py --open
+```
+
+That scans your logs, writes `~/.claude/usage-report/`, and opens the page. Scanning a hundred
+sessions takes up to a minute; everything after that is instant.
+
+Requires Python 3.9+. Works on Windows, macOS and Linux.
+
+## Make the weekly limit real
+
+Anthropic does not publish limits in tokens, so any tool claiming to know your exact remaining quota
+is guessing. This one asks you instead.
+
+Open **claude.ai → Settings → Usage** (or run `/usage` in Claude Code) and feed it what you see:
+
+```bash
+python usage_report.py --observe 46 --fable 31 --reset "2026-09-17 20:00"
+```
+
+- `--observe` — the "all models" percentage for the current week
+- `--fable` — the Fable percentage, which runs on its own separate budget
+- `--reset` — when the week rolls over
+
+From that one reading the tool solves for your plan's weekly budget in *load units* (tokens weighted
+by model and token type) and can then track every later week on its own. Give it a reading now and
+then; each one sharpens the estimate. Until you do, the gauge says so plainly instead of inventing a
+number.
+
+Plan changes are handled per plan: a Max reading never gets rescaled into a Pro budget, because
+"Pro = Max ÷ 5" was tested against real weeks and does not hold.
+
+## How it counts
+
+| | |
+|---|---|
+| **Source** | `~/.claude/projects/**/*.jsonl`, the logs Claude Code writes anyway |
+| **One call** | one `requestId` — a single API call spans several log lines, and they are deduplicated |
+| **Active time** | the sum of gaps between adjacent records no longer than `idle_minutes` (10 by default), so leaving the window open overnight costs nothing |
+| **History** | daily snapshots accumulate in `history.json`, so the days Claude Code prunes after 30 days stay with you |
+| **Load units** | tokens × per-model weights (the API price list, used purely as weights) — the currency the limit gauge speaks |
+
+Run it at least monthly, or on a scheduler, or the pruning will outrun your history.
+
+## Configuration
+
+Copy `config.example.json` to `~/.claude/usage-report/config.json` and edit. The interesting keys:
+
+| Key | What it does |
+|---|---|
+| `groups` | three project groups by name pattern, first match wins — this is what the colours mean |
+| `plan_history` | which plan you were on when: `[{"from": "2026-09-08", "plan": "max5"}]` |
+| `observations` | your `/usage` readings; written by `--observe`, safe to edit by hand |
+| `week_reset` | the moment your week rolls over, from `/usage` |
+| `boosts` | temporary promos: `[{"from": …, "to": …, "factor": 1.5}]` |
+| `git_roots`, `git_authors` | where your repos live and which author patterns count as you |
+| `idle_minutes` | the gap after which time stops being active |
+| `lang` | `en`, or `ru` for the Russian page |
+
+`--out-dir DIR` points the whole thing at a different data directory, which is how the demo builds
+without touching anything of yours.
+
+## As a Claude Code skill
+
+Copy or symlink the repo into `~/.claude/skills/claude-usage-report/` — `SKILL.md` is in the root,
+so the folder works as a skill as it stands. Then ask Claude Code "how much have I spent this month"
+or "refresh the usage dashboard" and it will run the script, read the numbers back to you, and
+publish the page as an artifact.
+
+## Making it yours
+
+The page is one HTML file with no external scripts: it opens from `file://`, and it is equally happy
+as a claude.ai artifact. Mechanics and looks are deliberately separated — every colour and font lives
+in the `:root` block at the top of `template.html`, and `<div class="bg">` is left empty for whatever
+background you want.
+
+- Hand `dashboard.design.html` (the same page on a small slice of data) to a design model, then
+  `python usage_report.py --adopt the-result.html` puts the new look back into the template and keeps
+  your data hooks intact. The old template is saved beside it as `template.bak.html`.
+- Or ignore the page entirely and build your own on top of `data.json` — the fields are documented in
+  [docs/data-contract.md](docs/data-contract.md).
+- `template.html` is the English original; `i18n/ru.json` is a flat map that rebuilds the Russian
+  page from it. Adding a language means adding one such file.
+
+## How this compares to ccusage
+
+[ccusage](https://github.com/ryoppippi/ccusage) is the well-known CLI in this space, and it is very
+good at what it does: fast per-session and per-day cost tables in your terminal.
+
+This project is after something else:
+
+- a **visual page** rather than a table — heatmaps, trends, a weekly instrument
+- the **weekly limit**, calibrated from your own `/usage` readings, including Fable's separate scale
+- **history that survives** Claude Code's 30-day log pruning
+- **project grouping** into work and personal, with commits alongside the hours
+
+Use both. They answer different questions.
+
+## Caveats
+
+- Everything about the weekly limit is a model built on top of your `/usage` readings, not published
+  data. The page marks uncalibrated figures as estimates rather than dressing them up.
+- Skill cost counts only the re-reading of a skill's text out of cache; `/usage` counts more broadly.
+- Your project names are in the report. Think before you put the rendered page somewhere public.
+
+## License
+
+MIT

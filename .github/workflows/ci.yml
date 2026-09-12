@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Core checks
+        run: python test_usage_report.py
+
+      # Both languages must build from the one template. --strict fails when the translation
+      # table has drifted, which is the only way the Russian page can silently rot.
+      - name: Build the demo in English
+        run: python demo/make_demo.py --strict
+
+      - name: Build the demo in Russian
+        run: python demo/make_demo.py --lang ru --strict --out demo/index.ru.html

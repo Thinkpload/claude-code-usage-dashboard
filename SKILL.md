@@ -1,98 +1,96 @@
 ---
 name: claude-usage-report
-description: Use when the user asks how much time or tokens Claude Code has spent (this project, all projects, the month), asks to refresh or publish the usage dashboard, gives a /usage percentage to calibrate the weekly limit, or says "статистика по токенам", "сколько я потратил на Claude", "обнови дашборд использования", "доля работы и личных проектов", "процент лимита", "usage report", "/claude-usage-report".
+description: Use when the user asks how much time or how many tokens Claude Code has spent (this project, all projects, this month), asks to refresh or publish the usage dashboard, gives a /usage percentage to calibrate the weekly limit, or says "how much have I spent on Claude", "token stats", "refresh the usage dashboard", "work vs personal split", "percent of the limit", "usage report".
 ---
 
-# Счётчик Claude Code
+# Claude Code usage report
 
-Считает по локальным журналам сессий (`~/.claude/projects/**/*.jsonl`) активные часы, токены,
-доли проектов (три группы) и использование недельного лимита; копит историю, чтобы 30-дневная
-чистка журналов Claude Code ничего не стирала; собирает дашборд и публикует его артефактом.
+Counts active hours, tokens, project split (three groups) and weekly-limit usage from the local
+session logs (`~/.claude/projects/**/*.jsonl`); accumulates history so Claude Code's 30-day log
+pruning does not erase anything; renders a dashboard and can publish it as an artifact.
 
-| Что | Где |
+| What | Where |
 |---|---|
-| Скрипт | `~/.claude/skills/claude-usage-report/usage_report.py` |
-| Шаблон страницы | `~/.claude/skills/claude-usage-report/template.html` |
-| Настройки (группы, тариф, показания) | `~/.claude/usage-report/config.json` |
-| История дневных срезов | `~/.claude/usage-report/history.json` |
-| Дашборд для браузера / для артефакта | `~/.claude/usage-report/dashboard.html` / `dashboard.artifact.html` |
-| Те же данные без страницы | `~/.claude/usage-report/data.json` — поля в `data-contract.md` |
+| Script | `usage_report.py` in this folder |
+| Page template | `template.html` in this folder |
+| Settings (groups, plan, readings) | `~/.claude/usage-report/config.json` |
+| Daily history | `~/.claude/usage-report/history.json` |
+| Dashboard for a browser / for an artifact | `~/.claude/usage-report/dashboard.html` / `dashboard.artifact.html` |
+| The same data without a page | `~/.claude/usage-report/data.json` — fields in `docs/data-contract.md` |
 
-## Порядок действий
+## What to do
 
-1. **В сообщении есть показание `/usage`** (claude.ai → Settings → Usage, или `/usage` в Claude Code)?
-   Сначала запиши его — это единственный способ сделать шкалу лимита настоящей. Нужны: процент
-   «All models», процент «Fable» (отдельная шкала), момент сброса недели, и действует ли акция:
+1. **Does the message contain a `/usage` reading** (claude.ai → Settings → Usage, or `/usage` in
+   Claude Code)? Record it first — it is the only way to make the limit gauge real. You need the
+   "All models" percentage, the "Fable" percentage (a separate scale), when the week resets, and
+   whether a promo is running:
    ```bash
-   PYTHONUTF8=1 python ~/.claude/skills/claude-usage-report/usage_report.py --observe 20 --fable 34 --reset "2026-09-17 20:00"
+   python usage_report.py --observe 20 --fable 34 --reset "2026-09-17 20:00"
    ```
-   Момент показания по умолчанию «сейчас»; для скриншота, снятого раньше, добавь `--at "ГГГГ-ММ-ДД ЧЧ:ММ"`.
-   Акции («+50 % к недельным лимитам до …») заносятся в `config.json` → `boosts` с датами — они
-   применяются и к калибровке, и к отображению. Бюджет калибруется **по тарифам отдельно**: тариф
-   показания = тариф на его дату (`plan_history`); тариф без своего показания процента не получает
-   (на графике «?») — пересчёт «Pro = Max ÷ 5» проверен и не сходится.
-2. **Пересобери:** `PYTHONUTF8=1 python ~/.claude/skills/claude-usage-report/usage_report.py`
-   (с `--open` откроет `dashboard.html` в браузере). Скан 100+ сессий занимает до минуты.
-3. **Опубликуй артефакт** через инструмент Artifact с файлом `~/.claude/usage-report/dashboard.artifact.html`.
-   Если в `config.json` есть `artifact_url` — передай его как `url`, чтобы обновить ту же страницу.
-   Если нет — публикуй впервые (favicon `📊`), затем запиши полученный адрес в `config.json` → `artifact_url`.
-4. **Ответь цифрами из сводки скрипта:** активные часы за 30 дней, доли трёх групп и «работа»,
-   вызовы и вывод, использование лимита — с пометкой «откалибровано» или «заводская догадка».
-   Лимит без калибровки — условная цифра; так и говори, не выдавай за факт.
+   The reading defaults to "now"; for a screenshot taken earlier add `--at "YYYY-MM-DD HH:MM"`.
+   Promos ("+50 % weekly limits until …") go into `config.json` → `boosts` with dates; they apply
+   both to calibration and to display. Budgets are calibrated **per plan**: a reading's plan is the
+   one in force on its date (`plan_history`), and a plan with no reading of its own gets no
+   percentage (shown as "?"). Rescaling "Pro = Max ÷ 5" was tested and does not hold.
+2. **Rebuild:** `python usage_report.py` (add `--open` to open it in a browser). Scanning 100+
+   sessions takes up to a minute.
+3. **Publish the artifact** with the Artifact tool, using `~/.claude/usage-report/dashboard.artifact.html`.
+   If `config.json` has an `artifact_url`, pass it as `url` to update the same page. If not, publish
+   fresh (favicon 📊), then write the returned address into `config.json` → `artifact_url`.
+4. **Answer with the script's own numbers:** active hours over 30 days, the three group shares and
+   the work total, calls and output, limit usage — labelled "calibrated" or "factory guess". An
+   uncalibrated limit is a placeholder; say so rather than presenting it as fact.
 
-## Настройки (`config.json`)
+## Settings (`config.json`)
 
-| Ключ | Зачем |
+| Key | Why |
 |---|---|
-| `groups` | три группы по маскам имён проектов, первая подошедшая побеждает: `core` = основная работа, `work` = рабочее окружение, `personal` = всё прочее |
-| `plan_history` | тариф по датам: `[{"from": "2026-09-08", "plan": "max5"}]`; тариф недели — тот, что действует в её конце |
-| `observations` | показания `/usage` (`at`, `pct`, `fable_pct`); бюджет каждого тарифа — из его собственных показаний |
-| `week_reset` | момент сброса недели из `/usage` (с временем); окна считаются от него, неполный день делится по профилю активных часов; без него — недели с понедельника |
-| `boosts` | акции к недельному бюджету: `[{"from", "to", "factor"}]` |
-| `factory_weekly_units_pro` | заводская догадка, пока показаний нет вовсе |
-| `token_weights` | веса токенов по моделям (= цены API), только для лимита |
-| `git_roots`, `git_authors` | где искать локальные репозитории (`.git` не глубже `depth`) и чьи коммиты считать (регулярки `git --author`); это и есть «активность GitHub» на дашборде |
-| `idle_minutes` | промежуток между записями, после которого время не считается активным (10) |
+| `groups` | three groups by project-name pattern, first match wins: `core` = main work, `work` = work misc, `personal` = everything else |
+| `plan_history` | plan by date: `[{"from": "2026-09-08", "plan": "max5"}]`; a week's plan is the one in force at its end |
+| `observations` | `/usage` readings (`at`, `pct`, `fable_pct`); each plan's budget comes from its own readings |
+| `week_reset` | the week's reset moment from `/usage`; windows are measured from it and a partial day is split along the activity profile. Without it, weeks start Monday |
+| `boosts` | promos applied to the weekly budget: `[{"from", "to", "factor"}]` |
+| `factory_weekly_units_pro` | the factory guess used while there are no readings at all |
+| `token_weights` | per-model token weights (= API prices), used only for the limit |
+| `git_roots`, `git_authors` | where to look for local repos (`.git` no deeper than `depth`) and whose commits count (patterns for `git --author`); this is the "GitHub activity" on the dashboard |
+| `idle_minutes` | the gap after which time stops counting as active (10) |
+| `lang` | dashboard language; `ru` needs `i18n/ru.json` |
 
-## Свой облик страницы (Claude Design)
+## A look of your own (Claude Design)
 
-Механика и облик разделены: все цвета и шрифты — в первом блоке `<style>` шаблона, слой
-`<div class="bg">` заготовлен под анимированный фон, разметка семантическая.
+Mechanics and looks are separated: every colour and font is in the first `<style>` block of the
+template, `<div class="bg">` is reserved for an animated background, and the markup is semantic.
 
-- **Что отдавать в Claude Design:** `~/.claude/usage-report/dashboard.design.html` (та же страница
-  с маленькой выборкой данных — 10 дней, 4 проекта, чтобы модель не переписывала десятки килобайт
-  цифр) + бриф `~/.claude/usage-report/design-brief.md`. Полный `dashboard.html` не отдавать.
-- **Забрать результат из проекта Claude Design:** инструмент `DesignSync` (`get_project` → `list_files` →
-  `get_file dashboard.html`; нужна разовая авторизация `/design-login` в терминальном Claude Code — в
-  расширении VS Code команды нет). Ответ приходит JSON-ом с полем `content` — сохранить его в файл.
-  Сверять по трём частям отдельно: `<head>` (стили), тело, скрипт — дизайнер правит и скрипт
-  (например, переписал `gauge()`), диф смотреть целиком, без пустых строк. Если образец устарел
-  относительно шаблона — брать из проекта голову и изменённые функции, остальное оставлять текущее.
-  Индикаторы: крупно (по два в ряд), подписи короткие, пояснения — всплывающей подсказкой (bindTip).
-- **Что делать с результатом:** `python usage_report.py --adopt путь/к/файлу.html` — вынет облик,
-  восстановит крючки (`<!--BODY-->` и `const DATA = /*__DATA__*/null;`), положит старый шаблон
-  рядом как `template.bak.html` и пересоберёт. Если результат сломал графики — вернуть
-  `template.bak.html` на место.
-- Своя страница с нуля — поверх `data.json`, состав полей в `data-contract.md`.
+- **What to hand to Claude Design:** `~/.claude/usage-report/dashboard.design.html` (the same page on
+  a small slice — 10 days, 4 projects, so the model does not rewrite tens of kilobytes of digits)
+  plus the brief in `docs/design-brief.md`. Do not hand over the full `dashboard.html`.
+- **Getting the result back:** compare it in three parts — `<head>` (styles), body, script — because
+  a design pass often edits the script too. Read the whole diff, ignoring blank lines. If the sample
+  has fallen behind the template, take the head and the changed functions and leave the rest.
+- **What to do with it:** `python usage_report.py --adopt path/to/file.html` extracts the look,
+  restores the hooks (`<!--BODY-->` and `const DATA = /*__DATA__*/null;`), saves the old template
+  beside it as `template.bak.html`, and rebuilds. If the result breaks the charts, put
+  `template.bak.html` back.
+- A page from scratch goes on top of `data.json`; the fields are in `docs/data-contract.md`.
+- Translations live in `i18n/<lang>.json` as a flat map from the template's English strings. After a
+  design pass the script reports entries that no longer match, which are the ones to update.
 
-## Автозапуск
+## Running it unattended
 
-Задача планировщика Windows `ClaudeUsageReport` (ежедневно 20:50, перед бэкапами 21:00/21:05) гоняет
-скрипт системным Python 3.11 и пишет `~/.claude/usage-report/run.log` — история и локальный дашборд
-всегда свежие. Артефакт она не публикует: это делает навык из сессии (шаг 3). Проверка:
-`Get-ScheduledTask ClaudeUsageReport | Get-ScheduledTaskInfo`. Путь к `pwsh` — алиас
-`AppData\Local\Microsoft\WindowsApps\pwsh.exe`, не Store-путь с номером версии (тот исчезает при обновлении).
+Any scheduler works — cron, systemd timers, Windows Task Scheduler. Point it at
+`python usage_report.py` daily so the history and the local dashboard stay fresh. The scheduler does
+not publish the artifact; that is step 3, from a session.
 
-## Грабли
+## Pitfalls
 
-- Журналы старше 30 дней Claude Code удаляет (`cleanupPeriodDays`); история спасает только то,
-  что успела застать, — обновлять надо хотя бы раз в месяц.
-- Один вызов API пишется несколькими строками с одним `requestId`; дедуп уже в скрипте — не
-  считать строки заново другим способом.
-- Anthropic лимиты в токенах не публикует; всё, что про лимит, — модель поверх показаний `/usage`.
-  Fable — отдельная шкала со своим бюджетом; по данным она входит и в «все модели» (вывод по
-  сходимости цифр, не документация).
-- `/usage` в Claude Code может показывать старый тариф (берёт из токена входа) — верить
-  claude.ai → Settings → Usage; при смене тарифа сделать `/login`.
-- Личные проекты видны в отчёте — не класть его в рабочие репозитории.
-- Проверки ядра: `PYTHONUTF8=1 python test_usage_report.py` в папке навыка.
+- Claude Code deletes logs older than 30 days (`cleanupPeriodDays`). The history only preserves what
+  it managed to see, so run it at least monthly.
+- One API call is written as several lines sharing a `requestId`; the script already deduplicates —
+  do not count lines another way.
+- Anthropic does not publish limits in tokens; everything about the limit is a model on top of
+  `/usage` readings. Fable is a separate scale with its own budget and, judging by the numbers, is
+  also included in "all models" (inferred from how the figures reconcile, not from documentation).
+- `/usage` inside Claude Code can show a stale plan (it reads the login token) — trust
+  claude.ai → Settings → Usage, and run `/login` after changing plans.
+- Personal projects are visible in the report — do not drop it into a work repository.
+- Core checks: `python test_usage_report.py` in this folder.

@@ -1,40 +1,40 @@
-# Бриф для Claude Design — «Счётчик Claude Code»
+# Brief for a design pass — "Claude Code usage"
 
-**Что это.** Личный дашборд одного человека: сколько часов и токенов ушло в Claude Code, доли
-рабочих и личных проектов, использование недельного лимита, когда работаю (день недели × час),
-коммиты, состав токенов, рекомендации по экономии. Открывается раз в неделю, смотрится 2–3 минуты:
-сначала плитки и три круговых индикатора, потом графики, в конце таблица. Экран — ноутбук 1280+,
-изредка телефон.
+**What this is.** One person's private dashboard: how many hours and tokens went into Claude Code,
+the split between work and personal projects, weekly limit usage, when the work happens (weekday ×
+hour), commits, token mix, and suggestions for spending less. Opened once a week and read for two or
+three minutes: the tiles and the gauge first, then the charts, then the table at the end. Screen is
+a 1280+ laptop, occasionally a phone.
 
-**Приложенный файл** — рабочая страница с настоящей вёрсткой и маленькой выборкой данных. Всё, что
-рисуется, рисует её скрипт (SVG без библиотек), поэтому:
+**The attached file** is the real page with its real markup and a small slice of data. Everything
+you see is drawn by its own script (SVG, no libraries), so:
 
-## Что менять — облик
+## What to change — the look
 
-- **Блок `:root` в начале `<style>`** — единственное место с цветами и шрифтами. Нужна тёмная
-  тема как основная: глубокий тёмно-зелёный/чёрный фон, мятный акцент, второй акцент — циан;
-  заголовки Manrope, цифры и подписи — JetBrains Mono (подключение через Google Fonts, с запасным
-  системным стеком). Светлая тема может остаться как есть или стать вторичной.
-- **Слой `<div class="bg">`** (пустой, `position:fixed` под страницей) — сюда анимированный фон:
-  медленное движение двух-трёх размытых пятен света или тонкая сетка; без резких движений, с
-  `prefers-reduced-motion: reduce` анимация выключается.
-- **Круговые индикаторы** (`figure.gauge`) — дуга 240°, толщина, свечение, подпись под числом;
-  можно добавить деления.
-- **Плитки** (`.tile`) и **карточки** (`.card`) — радиусы, границы, тени, отступы; заголовок
-  карточки — это ручка для перетаскивания (в нём значок ⠿), так и оставить.
-- Цвета данных: три группы проектов (`--s1`, `--s2`, `--s3`) должны различаться и при дальтонизме
-  (сейчас проверенная тройка синий/оранжевый/зелёный; если менять — например мята `#1FA876`,
-  сирень `#8F62E6`, коралл `#E0603A` на тёмном); порядковая шкала `--r1…--r4` — один тон от
-  тёмного к светлому; тепловая карта `--heat` — один тон.
+- **The `:root` block at the top of `<style>`** is the only place colours and fonts live. The dark
+  theme is the primary one; the light theme can stay secondary or be left as is.
+- **The `<div class="bg">` layer** (empty, `position:fixed`, behind the page) is where a background
+  belongs: a slow drift of two or three blurred lights, or a fine grid. Nothing abrupt, and switch
+  the animation off under `prefers-reduced-motion: reduce`.
+- **The gauge** (`figure.dial`) — arc, thickness, glow, the label under the number; tick marks are
+  welcome.
+- **Tiles** (`.tile`) and **cards** (`.card`) — radii, borders, shadows, padding. A card's heading is
+  its drag handle (it carries a ⠿ mark); keep that.
+- Data colours: the three project groups (`--s1`, `--s2`, `--s3`) must stay distinguishable under
+  colour blindness; the ordinal ramp `--r1…--r4` is one hue from dark to light; the heatmap `--heat`
+  is a single hue.
 
-## Что не трогать — механика
+## What not to touch — the mechanics
 
-- Всё внутри `<script>…</script>`, включая строку `const DATA = …` (это данные, их подменяет
-  скрипт сборки).
-- `id` и `class` элементов, атрибуты `data-span` (ширина карточки в сетке из 6 колонок),
-  `draggable`, структуру `main > header + section.tiles + section.board + footer`.
-- Внешние скрипты не подключать — страница живёт и как локальный файл, и как артефакт claude.ai,
-  где разрешены только шрифты Google.
+- Everything inside `<script>…</script>`, including the line `const DATA = …` (that is the data; the
+  build script substitutes it).
+- Element `id`s and `class`es, the `data-span` attributes (card width in a six-column grid),
+  `draggable`, and the `main > header + section.tiles + section.board + footer` structure.
+- No external scripts: the page has to work as a local file and as a claude.ai artifact, where only
+  Google Fonts are allowed.
+- Do not translate the visible strings. `template.html` is the English original and `i18n/*.json`
+  maps it to other languages by exact string match — reworded text silently drops out of every
+  translation.
 
-**Результат** — один HTML-файл целиком (с моими скриптом и данными как есть). Дальше его подхватит
-команда `usage_report.py --adopt файл.html`.
+**Deliverable** — one whole HTML file, with the script and data left as they are. It is picked up
+from there by `python usage_report.py --adopt file.html`.
