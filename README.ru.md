@@ -5,7 +5,7 @@ Claude Code, какие проекты их съели и выйдет ли те
 половину неиспользованной.
 
 Читает журналы сессий, которые Claude Code и так пишет в `~/.claude/projects/**/*.jsonl`. Без
-учётной записи, без ключа API, без сети. Один файл на Python, никаких зависимостей.
+учётной записи, без ключа API, без сети. Чистый Python, никаких зависимостей.
 
 **[→ Живое демо](https://thinkpload.github.io/claude-code-usage-dashboard/)** (вымышленные данные, настоящая страница)
 
@@ -24,16 +24,25 @@ Claude Code, какие проекты их съели и выйдет ли те
 
 ## Быстрый старт
 
+Ничего не устанавливая и не клонируя:
+
+```bash
+uvx --from git+https://github.com/Thinkpload/claude-code-usage-dashboard claude-usage-dashboard --open
+```
+
+Или забрать себе и запускать на месте:
+
 ```bash
 git clone https://github.com/Thinkpload/claude-code-usage-dashboard
 cd claude-code-usage-dashboard
-python usage_report.py --open
+python -m claude_usage_dashboard --open
 ```
 
-Просканирует журналы, запишет `~/.claude/usage-report/` и откроет страницу. Скан сотни сессий
-занимает до минуты, дальше всё мгновенно.
+И так и так: просканирует журналы, запишет `~/.claude/usage-report/` и откроет страницу. Скан сотни
+сессий занимает до минуты, дальше всё мгновенно. Нужны свежие цифры — запустите снова: страница
+обычный файл, ни сервера, ни демона.
 
-Нужен Python 3.9+. Работает на Windows, macOS и Linux.
+Python 3.9+, только стандартная библиотека. Windows, macOS и Linux.
 
 ## Сделать шкалу лимита настоящей
 
@@ -43,7 +52,7 @@ Anthropic не публикует лимиты в токенах, поэтому
 Откройте **claude.ai → Settings → Usage** (или `/usage` в Claude Code) и занесите, что видите:
 
 ```bash
-python usage_report.py --observe 46 --fable 31 --reset "2026-09-17 20:00"
+claude-usage-dashboard --observe 46 --fable 31 --reset "2026-09-17 20:00"
 ```
 
 - `--observe` — процент недели по «всем моделям»
@@ -98,14 +107,14 @@ python usage_report.py --observe 46 --fable 31 --reset "2026-09-17 20:00"
 
 Страница — один HTML-файл без внешних скриптов: открывается из `file://` и одинаково хорошо живёт
 артефактом на claude.ai. Механика и облик разделены намеренно: все цвета и шрифты — в блоке `:root`
-в начале `template.html`, а `<div class="bg">` оставлен пустым под любой фон.
+в начале `claude_usage_dashboard/template.html`, а `<div class="bg">` оставлен пустым под любой фон.
 
 - Отдайте `dashboard.design.html` (та же страница на маленькой выборке) дизайн-модели, потом
-  `python usage_report.py --adopt результат.html` вернёт новый облик в шаблон, сохранив крючки для
+  `python -m claude_usage_dashboard --adopt результат.html` вернёт новый облик в шаблон, сохранив крючки
   данных. Старый шаблон ляжет рядом как `template.bak.html`.
 - Или не трогайте страницу вовсе и соберите свою поверх `data.json` — поля описаны в
   [docs/data-contract.md](docs/data-contract.md).
-- `template.html` — английский оригинал, `i18n/ru.json` — плоская карта, собирающая из него русскую
+- `template.html` — английский оригинал, `i18n/ru.json` рядом — плоская карта, собирающая из него русскую
   страницу. Новый язык = ещё один такой файл.
 
 ## Чем отличается от ccusage

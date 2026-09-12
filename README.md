@@ -5,7 +5,7 @@ Code hours actually went, which projects ate them, and whether this week's pace 
 weekly limit or wastes half of it.
 
 It reads the session logs Claude Code already writes to `~/.claude/projects/**/*.jsonl`. No account,
-no API key, no network. One Python file, no dependencies.
+no API key, no network. Pure Python, no dependencies.
 
 **[→ Open the live demo](https://thinkpload.github.io/claude-code-usage-dashboard/)** (invented data, the real page)
 
@@ -26,16 +26,25 @@ no API key, no network. One Python file, no dependencies.
 
 ## Quick start
 
+Nothing to install, nothing to clone:
+
+```bash
+uvx --from git+https://github.com/Thinkpload/claude-code-usage-dashboard claude-usage-dashboard --open
+```
+
+Or take a copy and run it in place:
+
 ```bash
 git clone https://github.com/Thinkpload/claude-code-usage-dashboard
 cd claude-code-usage-dashboard
-python usage_report.py --open
+python -m claude_usage_dashboard --open
 ```
 
-That scans your logs, writes `~/.claude/usage-report/`, and opens the page. Scanning a hundred
-sessions takes up to a minute; everything after that is instant.
+Either way it scans your logs, writes `~/.claude/usage-report/`, and opens the page. Scanning a
+hundred sessions takes up to a minute; everything after that is instant. Run it again whenever you
+want fresh numbers — the page is a plain file, there is no server and no daemon.
 
-Requires Python 3.9+. Works on Windows, macOS and Linux.
+Python 3.9+, standard library only. Windows, macOS and Linux.
 
 ## Make the weekly limit real
 
@@ -45,7 +54,7 @@ is guessing. This one asks you instead.
 Open **claude.ai → Settings → Usage** (or run `/usage` in Claude Code) and feed it what you see:
 
 ```bash
-python usage_report.py --observe 46 --fable 31 --reset "2026-09-17 20:00"
+claude-usage-dashboard --observe 46 --fable 31 --reset "2026-09-17 20:00"
 ```
 
 - `--observe` — the "all models" percentage for the current week
@@ -101,15 +110,17 @@ publish the page as an artifact.
 
 The page is one HTML file with no external scripts: it opens from `file://`, and it is equally happy
 as a claude.ai artifact. Mechanics and looks are deliberately separated — every colour and font lives
-in the `:root` block at the top of `template.html`, and `<div class="bg">` is left empty for whatever
-background you want.
+in the `:root` block at the top of `claude_usage_dashboard/template.html`, and `<div class="bg">` is
+left empty for whatever background you want.
 
 - Hand `dashboard.design.html` (the same page on a small slice of data) to a design model, then
-  `python usage_report.py --adopt the-result.html` puts the new look back into the template and keeps
-  your data hooks intact. The old template is saved beside it as `template.bak.html`.
+  `python -m claude_usage_dashboard --adopt the-result.html` puts the new look back into the
+  template and keeps your data hooks intact. The old template is saved beside it as
+  `template.bak.html`. Run that one from a checkout — an ephemeral `uvx` install has nowhere to
+  keep the result.
 - Or ignore the page entirely and build your own on top of `data.json` — the fields are documented in
   [docs/data-contract.md](docs/data-contract.md).
-- `template.html` is the English original; `i18n/ru.json` is a flat map that rebuilds the Russian
+- `template.html` is the English original; `i18n/ru.json` beside it is a flat map that rebuilds the Russian
   page from it. Adding a language means adding one such file.
 
 ## How this compares to ccusage

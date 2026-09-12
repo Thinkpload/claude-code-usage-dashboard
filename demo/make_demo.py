@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
-import usage_report as ur  # noqa: E402
+from claude_usage_dashboard import usage_report as ur  # noqa: E402
 
 DAYS = 90
 PROJECTS = [

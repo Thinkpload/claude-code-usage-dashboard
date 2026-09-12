@@ -24,3 +24,8 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+
+# Build artefacts
+dist/
+build/
+*.egg-info/

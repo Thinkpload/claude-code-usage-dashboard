@@ -5,10 +5,12 @@ Reads the session logs in ~/.claude/projects/**/*.jsonl, accumulates daily snaps
 ~/.claude/usage-report/history.json (so days Claude Code has already pruned survive) and
 renders dashboard.html + dashboard.artifact.html.
 
-    python usage_report.py                 # rescan and build
-    python usage_report.py --open          # ...and open it in a browser
-    python usage_report.py --observe 20 --fable 34          # /usage reading: all-models week and Fable
-    python usage_report.py --observe 20 --fable 34 --reset "2026-09-17 20:00" --factor 1.5 --at "2026-09-12 05:50"
+    claude-usage-dashboard                 # rescan and build
+    claude-usage-dashboard --open          # ...and open it in a browser
+    claude-usage-dashboard --observe 20 --fable 34          # /usage reading: all-models week and Fable
+    claude-usage-dashboard --observe 20 --fable 34 --reset "2026-09-17 20:00" --factor 1.5 --at "2026-09-12 05:50"
+
+From a checkout, with nothing installed: python -m claude_usage_dashboard
 """
 import argparse
 import fnmatch

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-usage-dashboard"
+version = "0.1.0"
+description = "Local dashboard for Claude Code usage: hours, tokens, project split, and a weekly-limit gauge calibrated from your own /usage readings"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Thinkpload" }]
+keywords = ["claude", "claude-code", "anthropic", "usage", "dashboard", "tokens"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Thinkpload/claude-code-usage-dashboard"
+Demo = "https://thinkpload.github.io/claude-code-usage-dashboard/"
+Source = "https://github.com/Thinkpload/claude-code-usage-dashboard"
+Issues = "https://github.com/Thinkpload/claude-code-usage-dashboard/issues"
+
+[project.scripts]
+claude-usage-dashboard = "claude_usage_dashboard.usage_report:main"
+
+[tool.setuptools]
+packages = ["claude_usage_dashboard"]
+
+# The page template and the translation tables are part of the program, not extras.
+[tool.setuptools.package-data]
+claude_usage_dashboard = ["template.html", "i18n/*.json"]

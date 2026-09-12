@@ -11,8 +11,8 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 
 | What | Where |
 |---|---|
-| Script | `usage_report.py` in this folder |
-| Page template | `template.html` in this folder |
+| Command | `claude-usage-dashboard`, or `python -m claude_usage_dashboard` from this folder |
+| Page template | `claude_usage_dashboard/template.html` |
 | Settings (groups, plan, readings) | `~/.claude/usage-report/config.json` |
 | Daily history | `~/.claude/usage-report/history.json` |
 | Dashboard for a browser / for an artifact | `~/.claude/usage-report/dashboard.html` / `dashboard.artifact.html` |
@@ -25,14 +25,14 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
    "All models" percentage, the "Fable" percentage (a separate scale), when the week resets, and
    whether a promo is running:
    ```bash
-   python usage_report.py --observe 20 --fable 34 --reset "2026-09-17 20:00"
+   claude-usage-dashboard --observe 20 --fable 34 --reset "2026-09-17 20:00"
    ```
    The reading defaults to "now"; for a screenshot taken earlier add `--at "YYYY-MM-DD HH:MM"`.
    Promos ("+50 % weekly limits until …") go into `config.json` → `boosts` with dates; they apply
    both to calibration and to display. Budgets are calibrated **per plan**: a reading's plan is the
    one in force on its date (`plan_history`), and a plan with no reading of its own gets no
    percentage (shown as "?"). Rescaling "Pro = Max ÷ 5" was tested and does not hold.
-2. **Rebuild:** `python usage_report.py` (add `--open` to open it in a browser). Scanning 100+
+2. **Rebuild:** `claude-usage-dashboard` (add `--open` to open it in a browser). Scanning 100+
    sessions takes up to a minute.
 3. **Publish the artifact** with the Artifact tool, using `~/.claude/usage-report/dashboard.artifact.html`.
    If `config.json` has an `artifact_url`, pass it as `url` to update the same page. If not, publish
@@ -67,7 +67,7 @@ template, `<div class="bg">` is reserved for an animated background, and the mar
 - **Getting the result back:** compare it in three parts — `<head>` (styles), body, script — because
   a design pass often edits the script too. Read the whole diff, ignoring blank lines. If the sample
   has fallen behind the template, take the head and the changed functions and leave the rest.
-- **What to do with it:** `python usage_report.py --adopt path/to/file.html` extracts the look,
+- **What to do with it:** `python -m claude_usage_dashboard --adopt path/to/file.html` extracts the look,
   restores the hooks (`<!--BODY-->` and `const DATA = /*__DATA__*/null;`), saves the old template
   beside it as `template.bak.html`, and rebuilds. If the result breaks the charts, put
   `template.bak.html` back.
@@ -78,7 +78,7 @@ template, `<div class="bg">` is reserved for an animated background, and the mar
 ## Running it unattended
 
 Any scheduler works — cron, systemd timers, Windows Task Scheduler. Point it at
-`python usage_report.py` daily so the history and the local dashboard stay fresh. The scheduler does
+`claude-usage-dashboard` daily so the history and the local dashboard stay fresh. The scheduler does
 not publish the artifact; that is step 3, from a session.
 
 ## Pitfalls
@@ -94,3 +94,4 @@ not publish the artifact; that is step 3, from a session.
   claude.ai → Settings → Usage, and run `/login` after changing plans.
 - Personal projects are visible in the report — do not drop it into a work repository.
 - Core checks: `python test_usage_report.py` in this folder.
+- `--adopt` rewrites the packaged template, so run it from a checkout, not from an ephemeral `uvx` install.

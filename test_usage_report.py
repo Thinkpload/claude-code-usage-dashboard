@@ -4,7 +4,7 @@ import os
 import tempfile
 from datetime import date
 
-import usage_report as ur
+from claude_usage_dashboard import usage_report as ur
 
 CFG = dict(ur.DEFAULT_CONFIG)
 CFG["observations"] = []

@@ -37,4 +37,4 @@ you see is drawn by its own script (SVG, no libraries), so:
   translation.
 
 **Deliverable** — one whole HTML file, with the script and data left as they are. It is picked up
-from there by `python usage_report.py --adopt file.html`.
+from there by `python -m claude_usage_dashboard --adopt file.html`.
