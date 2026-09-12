@@ -1,0 +1,51 @@
+{
+  "tz_offset_hours": 0,
+  "idle_minutes": 10,
+  "lang": "en",
+
+  "groups": [
+    { "id": "core",     "label": "Main work",   "match": ["acme-platform"] },
+    { "id": "work",     "label": "Work misc",   "match": ["acme-*", "*-infra*"] },
+    { "id": "personal", "label": "Personal",    "match": ["*"] }
+  ],
+  "work_groups": ["core", "work"],
+
+  "plans": {
+    "pro":   { "label": "Pro",     "ratio": 1 },
+    "max5":  { "label": "Max 5x",  "ratio": 5 },
+    "max20": { "label": "Max 20x", "ratio": 20 }
+  },
+  "plan_history": [
+    { "from": "2026-01-01", "plan": "pro" }
+  ],
+
+  "observations": [],
+  "week_reset": null,
+  "boosts": [],
+  "factory_weekly_units_pro": 350,
+
+  "model_labels": {
+    "claude-opus-5": "Opus 5",
+    "claude-fable-5-1": "Fable 5.1",
+    "claude-sonnet-5": "Sonnet 5",
+    "claude-haiku-4-5-20251001": "Haiku 4.5",
+    "claude-opus-4-8": "Opus 4.8",
+    "claude-opus-4-7": "Opus 4.7",
+    "claude-sonnet-4-6": "Sonnet 4.6"
+  },
+  "token_weights": {
+    "claude-fable":    { "input": 10, "cache_create": 12.5, "cache_read": 0.25, "output": 50 },
+    "claude-opus":     { "input": 5,  "cache_create": 6.25, "cache_read": 0.5,  "output": 25 },
+    "claude-sonnet-5": { "input": 2,  "cache_create": 2.5,  "cache_read": 0.2,  "output": 10 },
+    "claude-sonnet":   { "input": 3,  "cache_create": 3.75, "cache_read": 0.3,  "output": 15 },
+    "claude-haiku":    { "input": 1,  "cache_create": 1.25, "cache_read": 0.1,  "output": 5 },
+    "default":         { "input": 5,  "cache_create": 6.25, "cache_read": 0.5,  "output": 25 }
+  },
+
+  "git_roots": [
+    { "path": "~/code", "depth": 2 }
+  ],
+  "git_authors": [],
+
+  "artifact_url": null
+}

@@ -1,0 +1,951 @@
+<title>Claude Code usage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   LOOK TOKENS - the one place where colours and fonts live.
+   :root = dark (primary); [data-theme="light"] = light.
+   ============================================================ */
+:root{
+  color-scheme:dark;
+  --bg:#0f1518; --surface:#182024; --surface-2:#222d32;
+  --ink:#e8edee; --ink-2:#b0bbc0; --muted:#96a3a8; --hair:#2a363b; --axis:#4d5d63;
+  --accent:#e0a64a;                                                   /* brass */
+  --accent-2:#7fbbd4;                                                 /* ice */
+  --s1:#e0a64a; --s2:#7fbbd4; --s3:#b4a992; --other:#46545a;          /* groups: brass / ice / hemp */
+  --r1:#42768d; --r2:#5b9cb7; --r3:#86c1d9; --r4:#b6dbea;             /* ordinal: one hue, dark to light */
+  --heat:#7fbbd4;
+  --glow:rgba(224,166,74,.14);
+  --ok:#7d9299; --warn:#e0a64a; --bad:#ec7157;                        /* calm / attention / alarm */
+  --cold:#5f8697;                                    /* underburn: gone cold, paid-for capacity left standing */
+  --font:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --shadow:0 12px 30px rgba(0,0,0,.24);
+  --radius:14px; --radius-sm:10px; --gap:16px;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f1efea; --surface:#ffffff; --surface-2:#e7e4dd;
+  --ink:#12181a; --ink-2:#48545a; --muted:#68757b; --hair:#ddd9d1; --axis:#a9b2b6;
+  --accent:#8a5d12; --accent-2:#1f6b88;
+  --s1:#a06c12; --s2:#1f6b88; --s3:#8a8070; --other:#a7aeb1;
+  --r1:#10394a; --r2:#1f6b88; --r3:#3d90ad; --r4:#4f96b3;
+  --heat:#1f6b88;
+  --ok:#5d6f76; --warn:#8a5d12; --bad:#b2452c;
+  --cold:#2f6580;
+  --glow:rgba(138,93,18,.12);
+  --shadow:0 6px 18px rgba(18,24,28,.09);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;
+     -webkit-font-smoothing:antialiased;font-feature-settings:"ss01"}
+::selection{background:color-mix(in srgb,var(--accent) 35%,transparent)}
+
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+    background-image:linear-gradient(var(--hair) 1px,transparent 1px),linear-gradient(90deg,var(--hair) 1px,transparent 1px);
+    background-size:72px 72px;opacity:.32}
+.bg::before,.bg::after{content:"";position:absolute;width:70vmax;height:70vmax;border-radius:50%;will-change:transform}
+.bg::before{left:-30vmax;top:-35vmax;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 13%,transparent) 0%,transparent 62%);
+            animation:drift-a 60s ease-in-out infinite alternate}
+.bg::after{right:-30vmax;top:-5vmax;background:radial-gradient(circle,color-mix(in srgb,var(--accent-2) 11%,transparent) 0%,transparent 62%);
+           animation:drift-b 75s ease-in-out infinite alternate}
+@keyframes drift-a{from{transform:translate(0,0)}to{transform:translate(18vmax,12vmax)}}
+@keyframes drift-b{from{transform:translate(0,0)}to{transform:translate(-14vmax,18vmax)}}
+@media (prefers-reduced-motion:reduce){.bg::before,.bg::after{animation:none}}
+
+.page{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding-block:40px 64px;padding-inline:24px;
+      display:flex;flex-direction:column;gap:var(--gap)}
+h1{font-size:clamp(28px,3.4vw,40px);line-height:1.08;margin:0;letter-spacing:-.02em;font-weight:800;text-wrap:balance}
+h2{font-size:14px;font-weight:700;margin:0;color:var(--ink);letter-spacing:-.01em}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:0;color:var(--muted);margin:0 0 10px}
+.sub{color:var(--ink-2);margin:8px 0 0;font-family:var(--mono);font-size:12.5px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
+
+/* header */
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--gap);flex-wrap:wrap;padding-bottom:4px}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.periods{display:flex;gap:6px;flex-wrap:wrap}
+.periods button,.theme{font-family:var(--mono);font-size:12px;padding:8px 14px;border-radius:999px;border:1px solid var(--hair);
+  background:color-mix(in srgb,var(--surface) 80%,transparent);color:var(--ink-2);cursor:pointer}
+.periods button:hover,.theme:hover{border-color:var(--axis);color:var(--ink)}
+.periods button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600;
+  box-shadow:0 0 0 1px var(--accent),0 6px 20px var(--glow)}
+.periods button:focus-visible,.theme:focus-visible,.mark:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ============================================================
+   THE WEEK'S PRIMARY INSTRUMENT
+   One object, not three panels. Its own typeface: the instrument speaks differently
+   than the report below it. Colour is burn temperature: cold / brass / heat.
+   ============================================================ */
+.week{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:30px 34px 26px;
+      font-family:"Barlow Semi Condensed",var(--font);font-size:15px;
+      font-variant-numeric:tabular-nums;
+      display:grid;grid-template-columns:minmax(252px,324px) minmax(0,1fr);gap:30px 46px;align-items:center}
+.week[data-heat="cold"]{--now:var(--cold)}
+.week[data-heat="warm"]{--now:var(--accent)}
+.week[data-heat="hot"]{--now:var(--bad)}
+.week[data-heat="none"]{--now:var(--axis)}
+@media (max-width:820px){.week{grid-template-columns:1fr;gap:24px;padding:24px 22px}
+                         .dial{max-width:300px;margin-inline:auto}}
+
+/* dial */
+.dial{margin:0;width:100%}
+.dial svg{display:block;width:100%;height:auto;overflow:visible}
+.dial .d-track{fill:none;stroke:var(--surface-2);stroke-width:13;stroke-linecap:round}
+.dial .d-zone{fill:none;stroke-width:5;stroke-linecap:butt}
+.dial .d-tick{stroke:var(--axis);stroke-width:1.5;opacity:.6}
+.dial .d-needle{stroke:var(--ink);stroke-width:3.5;stroke-linecap:round}
+.dial .d-needle-alt{stroke:var(--ink-2);stroke-width:1.75;stroke-linecap:round;stroke-dasharray:4 4}
+.dial .d-hub{fill:var(--surface);stroke:var(--ink);stroke-width:1.75}
+.dial text{fill:var(--muted);font-size:12px;font-family:"Barlow Semi Condensed",var(--font)}
+.dial .d-read{font-size:40px;font-weight:600;letter-spacing:-.025em;fill:var(--now)}
+
+/* reading the instrument */
+.w-call{margin:0;font-size:clamp(31px,3.3vw,42px);line-height:1;font-weight:600;letter-spacing:-.015em;color:var(--now)}
+.w-line{margin:12px 0 0;max-width:66ch;font-size:16.5px;line-height:1.5;color:var(--ink-2);text-wrap:pretty}
+.w-line b{color:var(--ink);font-weight:600;white-space:nowrap}
+
+/* rails: where I am now against where I should be */
+.w-rails{margin:26px 0 0;display:grid;gap:17px}
+.rail{display:grid;gap:7px}
+.rail-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px}
+.rail .cap{font-size:14px;color:var(--muted)}
+.rail .cap b{color:var(--ink-2);font-weight:500}
+.rail .pct{font-size:21px;font-weight:600;color:var(--ink);line-height:1}
+.track{position:relative;height:16px;border-radius:3px;background:var(--surface-2);overflow:visible}
+.track.thin{height:10px}
+.track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--accent)}
+.track i.alt{background:var(--accent-2)}
+.track i.full{background:var(--bad)}
+.track .due{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);
+            box-shadow:0 0 0 1.5px var(--surface)}
+.w-keys{display:flex;flex-wrap:wrap;align-items:center;gap:5px 22px;margin:20px 0 0;font-size:13px;color:var(--muted)}
+.w-keys span{display:inline-flex;align-items:center;gap:8px}
+.w-keys i{flex:none}
+.w-keys .k-due{width:2px;height:12px;background:var(--ink)}
+.w-keys .k-sol{width:18px;height:0;border-top:2.5px solid var(--ink)}
+.w-keys .k-dsh{width:18px;height:0;border-top:2px dashed var(--ink-2)}
+.w-foot{margin:9px 0 0;font-size:13px;line-height:1.5;color:var(--muted);max-width:66ch}
+
+/* ============================================================
+   READOUT ROW (instead of six identical tiles)
+   ============================================================ */
+.stats{display:grid;grid-template-columns:1.5fr repeat(4,1fr);align-items:baseline;padding:6px 2px 2px}
+@media (max-width:900px){.stats{grid-template-columns:repeat(2,1fr);row-gap:20px}}
+@media (max-width:520px){.stats{grid-template-columns:1fr}}
+.stat{display:flex;flex-direction:column;gap:5px;padding:0 22px;border-left:1px solid var(--hair)}
+.stat:first-child{padding-left:0;border-left:0}
+@media (max-width:900px) and (min-width:521px){.stat:nth-child(odd){padding-left:0;border-left:0}}
+@media (max-width:520px){.stat{padding:14px 0 0;border-left:0;border-top:1px solid var(--hair)}
+                         .stat:first-child{padding-top:0;border-top:0}}
+.stat b{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.025em;color:var(--ink);
+        font-variant-numeric:tabular-nums;line-height:1}
+.stat span{font-size:12px;color:var(--muted)}
+.stat-hero b{font-size:40px;letter-spacing:-.04em}
+
+/* cards and grids */
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);padding:20px 22px;
+      display:flex;flex-direction:column;gap:14px;min-width:0;box-shadow:var(--shadow)}
+.card header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;cursor:grab;user-select:none}
+.card header h2::before{content:"\2807";color:var(--muted);font-size:14px;margin-right:8px;opacity:.6}
+.card header:hover h2::before{color:var(--accent);opacity:1}
+.card .note{font-size:12px;color:var(--muted);font-family:var(--font);font-variant-numeric:tabular-nums}
+p.note{margin:0;line-height:1.55;max-width:70ch}
+.card>.chart{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;min-height:0}
+.board{display:grid;gap:var(--gap);grid-template-columns:repeat(12,minmax(0,1fr))}
+.board .card[data-span="6"]{grid-column:span 6}
+.board .card[data-span="12"]{grid-column:span 12}
+@media (max-width:860px){.board .card{grid-column:span 12}}
+.dragging{opacity:.35}
+
+/* legend, chips, statuses */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:999px;
+      background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.badge{font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.badge.warn{background:color-mix(in srgb,var(--warn) 12%,var(--surface));color:var(--warn)}
+.badge.bad{background:color-mix(in srgb,var(--bad) 12%,var(--surface));color:var(--bad)}
+
+/* charts */
+.chart{width:100%;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+.chart .tick{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.chart .grid{stroke:var(--hair);stroke-width:1}
+.chart .axis{stroke:var(--axis);stroke-width:1}
+.chart .ref{stroke:var(--accent-2);stroke-width:1;stroke-dasharray:4 4}
+.chart .lbl{fill:var(--ink);font-weight:600}
+.mark{cursor:default}
+.mark:hover{opacity:.85}
+
+/* portrait of a week: fill is activity, the dot is commits */
+.portrait rect.cell{stroke:var(--surface);stroke-width:2}
+.portrait circle.dot{fill:var(--accent)}
+.portrait rect.marg{fill:var(--ink-2);opacity:.55}
+
+/* token mix: one bar */
+.stack{display:flex;height:22px;border-radius:7px;overflow:hidden;background:var(--surface-2)}
+.stack i{min-width:3px}
+.stack-list{display:grid;gap:8px;margin-top:16px}
+.stack-list div{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.stack-list b{font-weight:500;color:var(--ink)}
+
+/* monthly trend: rows instead of two empty charts */
+.months{display:grid;gap:11px}
+.months .row{display:grid;grid-template-columns:66px minmax(0,1fr) 58px minmax(0,1fr) 58px;gap:12px;align-items:center;font-size:12.5px}
+.months .row.hd{color:var(--muted);font-family:var(--mono);font-size:11px}
+.months .bar{height:8px;border-radius:999px;background:var(--surface-2);position:relative}
+.months .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px}
+.months .num{text-align:right;font-family:var(--mono);color:var(--ink-2);font-variant-numeric:tabular-nums}
+.months .m{font-family:var(--mono);color:var(--ink)}
+
+/* projects table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid var(--hair);vertical-align:middle;white-space:nowrap}
+th{font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--muted);font-weight:500}
+td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+td .bar{height:6px;border-radius:999px;background:var(--surface-2);position:relative;min-width:120px}
+td .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)}
+
+/* tooltip */
+.tip{position:fixed;z-index:10;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.45;
+     padding:9px 11px;border-radius:10px;max-width:280px;box-shadow:0 10px 30px rgba(0,0,0,.4);font-family:var(--mono)}
+.tip b{font-weight:600}
+.tip .k{opacity:.65}
+
+/* recommendations */
+.advice{display:grid;gap:22px;grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+@media (max-width:760px){.advice{grid-template-columns:1fr}}
+.advice h3{font-family:var(--mono);font-size:11.5px;letter-spacing:0;color:var(--muted);margin:0 0 10px;font-weight:500}
+.advice .mini{display:grid;gap:5px;margin-bottom:16px}
+.advice .mini div{display:grid;grid-template-columns:120px 1fr 56px;gap:8px;align-items:center;font-size:12px;color:var(--ink-2)}
+.advice .mini b{font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.advice .mini i{display:block;height:6px;border-radius:999px;background:var(--surface-2);position:relative}
+.advice .mini i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);border-radius:999px;background:var(--fill,var(--accent))}
+.advice .mini span{text-align:right}
+.advice ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:12px}
+.advice li{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:13px;line-height:1.45}
+.advice li .tag{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);height:fit-content;white-space:nowrap}
+.advice li .tag.warn{background:color-mix(in srgb,var(--warn) 12%,var(--surface));color:var(--warn)}
+.advice li .tag.ok{background:color-mix(in srgb,var(--accent-2) 12%,var(--surface));color:var(--accent-2)}
+.advice li b{color:var(--ink);font-weight:700}
+.advice li .how{color:var(--ink-2)}
+footer.method{font-size:12px;color:var(--muted);line-height:1.6;max-width:80ch;padding-top:8px}
+footer.method p{margin:0 0 6px}
+footer.method b{color:var(--ink-2)}
+@media (prefers-reduced-motion:no-preference){.periods button,.theme,.mark,tbody tr td{transition:opacity .15s,background .15s,border-color .15s,color .15s}}
+</style>
+<!--BODY-->
+<div class="bg" aria-hidden="true"></div>
+<main class="page">
+  <header class="top">
+    <div>
+      <p class="eyebrow" id="eyebrow"></p>
+      <h1>Claude Code usage</h1>
+      <p class="sub" id="range"></p>
+    </div>
+    <div class="controls">
+      <nav class="periods" id="periods" aria-label="Period"></nav>
+      <button type="button" class="theme" id="theme"></button>
+    </div>
+  </header>
+
+  <section class="week" id="week" aria-label="Weekly limit"></section>
+
+  <section class="stats" id="stats" aria-label="Period totals"></section>
+
+  <section class="board" id="board" aria-label="Cards">
+    <div class="card" id="k-portrait" data-span="12">
+      <header><h2>When the work happens</h2><span class="note" id="portrait-note"></span></header>
+      <div class="chart portrait" id="c-portrait"></div>
+      <div class="legend" id="portrait-legend"></div>
+    </div>
+
+    <div class="card" id="k-daily" data-span="12">
+      <header><h2>Active hours by day</h2><div class="legend" id="legend-groups"></div></header>
+      <div class="chart" id="c-daily"></div>
+    </div>
+
+    <div class="card" id="k-weekly" data-span="6">
+      <header><h2>Limit weeks</h2><span class="badge" id="limit-badge"></span></header>
+      <div class="chart" id="c-weekly"></div>
+      <p class="note" id="limit-note"></p>
+    </div>
+    <div class="card" id="k-cum" data-span="6">
+      <header><h2>Cumulative hours in the period</h2></header>
+      <div class="chart" id="c-cum"></div>
+    </div>
+
+    <div class="card" id="k-months" data-span="6">
+      <header><h2>Monthly trend</h2><span class="note">every month on record</span></header>
+      <div class="chart" id="c-months"></div>
+    </div>
+    <div class="card" id="k-models" data-span="6">
+      <header><h2>Models</h2><span class="note">by output tokens</span></header>
+      <div class="chart" id="c-models"></div>
+    </div>
+
+    <div class="card" id="k-tokens" data-span="6">
+      <header><h2>Token mix</h2><span class="note" id="tok-total"></span></header>
+      <div class="chart" id="c-tokens"></div>
+    </div>
+    <div class="card" id="k-gitdaily" data-span="6">
+      <header><h2>Commits by day</h2><span class="note">by project group</span></header>
+      <div class="chart" id="c-gitdaily"></div>
+    </div>
+
+    <div class="card" id="k-advice" data-span="12">
+      <header><h2>Where the spend goes, and what to adjust</h2><span class="note">in load units, from the logs; skills count only the re-reading of their text from cache, /usage counts more broadly</span></header>
+      <div class="advice" id="c-advice"></div>
+    </div>
+
+    <div class="card" id="k-projects" data-span="12">
+      <header><h2>Projects</h2><span class="note" id="proj-note"></span></header>
+      <div class="table-wrap"><table id="t-projects"></table></div>
+    </div>
+  </section>
+
+  <footer class="method" id="method"></footer>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const GROUP_COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--other)'];
+  const RAMP = ['var(--r1)', 'var(--r2)', 'var(--r3)', 'var(--r4)'];
+  const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const groupIndex = Object.fromEntries(DATA.groups.map((g, i) => [g.id, i]));
+  const groupLabel = Object.fromEntries(DATA.groups.map((g) => [g.id, g.label]));
+
+  // ---------- formatting ----------
+  const ru = (n, d = 0) => n.toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
+  const fmtH = (sec) => ru(sec / 3600, 1) + ' h';
+  const fmtTok = (n) => n >= 1e6 ? ru(n / 1e6, n >= 1e7 ? 0 : 1) + ' M' : n >= 1e3 ? ru(n / 1e3, 0) + ' k' : ru(n);
+  const fmtDate = (s) => { const [y, m, d] = s.split('-'); return `${m}/${d}`; };
+  const fmtMonth = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
+  const modelLabel = (m) => DATA.model_labels[m] || m.replace(/^claude-/, '');
+  const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const parseAt = (s) => new Date(String(s).replace(' ', 'T'));
+
+  // ---------- periods ----------
+  const periods = [{ id: '30d', label: '30 days', from: addDays(DATA.today, -29), to: DATA.today }];
+  for (const ym of DATA.months) periods.push({ id: ym, label: fmtMonth(ym), from: ym + '-01', to: ym + '-31' });
+  periods.push({ id: 'all', label: 'All time', from: '0000-00-00', to: '9999-99-99' });
+  let current = periods[0];
+  try { const s = localStorage.getItem('ccusage.period'); const p = periods.find((x) => x.id === s); if (p) current = p; } catch (e) { /* no storage */ }
+
+  // ---------- aggregation ----------
+  function aggregate(p) {
+    const days = DATA.days.filter((d) => d.d >= p.from && d.d <= p.to);
+    const A = { days, sec: 0, msgs: 0, calls: 0, tok: { input: 0, cache_create: 0, cache_read: 0, output: 0, thinking: 0 },
+      byGroup: DATA.groups.map(() => 0), byProject: {}, byModel: {}, sessions: new Set(), heat: DOW.map(() => Array(24).fill(0)),
+      daily: [], cum: [], commits: 0, gitHeat: DOW.map(() => Array(24).fill(0)), gitDaily: [] };
+    let run = 0;
+    for (const day of days) {
+      const dg = DATA.groups.map(() => 0);
+      const dow = (new Date(day.d + 'T00:00:00').getDay() + 6) % 7;
+      let dcalls = 0;
+      for (const [name, v] of Object.entries(day.p)) {
+        const gi = groupIndex[DATA.projects[name]] ?? DATA.groups.length - 1;
+        const P = A.byProject[name] || (A.byProject[name] = { sec: 0, msgs: 0, calls: 0, output: 0, sessions: new Set(), group: DATA.projects[name] });
+        P.sec += v.sec; P.msgs += v.msgs; A.sec += v.sec; A.msgs += v.msgs; A.byGroup[gi] += v.sec; dg[gi] += v.sec;
+        v.sessions.forEach((s) => { P.sessions.add(s); A.sessions.add(s); });
+        (v.hours || []).forEach((s, h) => { A.heat[dow][h] += s; });
+        for (const [m, x] of Object.entries(v.models)) {
+          const M = A.byModel[m] || (A.byModel[m] = { calls: 0, output: 0, cache_read: 0 });
+          M.calls += x.calls; M.output += x.output; M.cache_read += x.cache_read;
+          P.calls += x.calls; P.output += x.output; A.calls += x.calls; dcalls += x.calls;
+          for (const k of Object.keys(A.tok)) A.tok[k] += x[k] || 0;
+        }
+      }
+      A.daily.push({ d: day.d, groups: dg, total: dg.reduce((a, b) => a + b, 0), calls: dcalls });
+      run += dg.reduce((a, b) => a + b, 0);
+      A.cum.push({ d: day.d, sec: run });
+    }
+    for (const [d, projects] of Object.entries(DATA.commits || {})) {
+      if (d < p.from || d > p.to) continue;
+      const dow = (new Date(d + 'T00:00:00').getDay() + 6) % 7, dg = DATA.groups.map(() => 0);
+      for (const [name, hours] of Object.entries(projects)) {
+        const gi = groupIndex[DATA.projects[name]] ?? DATA.groups.length - 1;
+        const P = A.byProject[name] || (A.byProject[name] = { sec: 0, msgs: 0, calls: 0, output: 0, sessions: new Set(), group: DATA.projects[name] });
+        const n = hours.reduce((x, y) => x + y, 0);
+        P.commits = (P.commits || 0) + n; A.commits += n; dg[gi] += n;
+        hours.forEach((c, h) => { A.gitHeat[dow][h] += c; });
+      }
+      A.gitDaily.push({ d, groups: dg, total: dg.reduce((x, y) => x + y, 0) });
+    }
+    A.gitDaily.sort((x, y) => x.d < y.d ? -1 : 1);
+    A.weeks = DATA.weeks.filter((w) => w.end >= p.from && w.start <= p.to);
+    return A;
+  }
+
+  // ---------- SVG helpers ----------
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function text(parent, x, y, s, attrs) { const t = el('text', Object.assign({ x, y }, attrs || {}), parent); t.textContent = s; return t; }
+  function svg(container, w, h) { container.innerHTML = ''; return el('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img' }, container); }
+  function column(parent, x, y, w, h, fill, r = 4) {
+    if (h <= 0) return null;
+    r = Math.min(r, w / 2, h);
+    const d = `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`;
+    return el('path', { d, fill, class: 'mark', tabindex: 0 }, parent);
+  }
+  function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10; return m * p; }
+  const width = (c) => Math.max(320, c.clientWidth || 600);
+
+  // ---------- tooltip ----------
+  const tip = $('tip');
+  function bindTip(node, html) {
+    const show = (ev) => { tip.innerHTML = html; tip.hidden = false; move(ev); };
+    const move = (ev) => { const x = (ev.clientX ?? 0) + 14, y = (ev.clientY ?? 0) + 14; tip.style.left = Math.min(x, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = Math.min(y, innerHeight - tip.offsetHeight - 8) + 'px'; };
+    const hide = () => { tip.hidden = true; };
+    node.addEventListener('mouseenter', show); node.addEventListener('mousemove', move); node.addEventListener('mouseleave', hide);
+    node.addEventListener('focus', () => { const r = node.getBoundingClientRect(); show({ clientX: r.left + r.width / 2, clientY: r.top }); });
+    node.addEventListener('blur', hide);
+  }
+
+  // ============================================================
+  // PACE PLAN: not by the calendar, but by when work actually happens.
+  // The reset falls on Thursday evening while the heavy days are Wednesday and Thursday morning: a calendar
+  // shouts “behind” all Monday while the profile says everything is on track.
+  // ============================================================
+  const PROFILE_DAYS = 56, PROFILE_MIN_DAYS = 14, PROFILE_FLAT = 0.2;
+  function weekProfile() {
+    const from = addDays(DATA.today, -(PROFILE_DAYS - 1));
+    const days = DATA.days.filter((d) => d.d >= from);
+    const w = Array(168).fill(0);
+    let total = 0;
+    for (const day of days) {
+      const dow = (new Date(day.d + 'T00:00:00').getDay() + 6) % 7;
+      for (const v of Object.values(day.p)) (v.hours || []).forEach((s, h) => { w[dow * 24 + h] += s; total += s; });
+    }
+    if (days.length < PROFILE_MIN_DAYS || !total) return null;   // too little data - the calendar is more honest
+    // a flat blend: one lone night hour in the history must not freeze the plan until morning
+    const flat = total / 168;
+    for (let i = 0; i < 168; i++) w[i] = (1 - PROFILE_FLAT) * w[i] + PROFILE_FLAT * flat;
+    return w;
+  }
+  // what share of the week's activity should be behind you at moment t
+  function profileFrac(prof, start, reset, t) {
+    const slot = (d) => prof[((d.getDay() + 6) % 7) * 24 + d.getHours()];
+    const integrate = (x, y) => {
+      let sum = 0, cur = new Date(x);
+      while (cur < y) {
+        const next = new Date(cur); next.setMinutes(60, 0, 0);
+        const end = next < y ? next : new Date(y);
+        sum += slot(cur) * (end - cur) / 36e5;
+        cur = end;
+      }
+      return sum;
+    };
+    const all = integrate(start, reset);
+    return all > 0 ? Math.max(0, Math.min(1, integrate(start, t) / all)) : null;
+  }
+  // when you hit 100 % if the pace holds: plan(t) = 1/k. Binary search over a monotonic curve
+  function hitMoment(planAt, now, reset, k) {
+    if (!(k > 1)) return null;
+    const target = 1 / k;
+    if (planAt(reset) < target) return null;
+    let lo = +now, hi = +reset;
+    for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (planAt(new Date(mid)) < target) lo = mid; else hi = mid; }
+    return new Date(hi);
+  }
+
+  // ============================================================
+  // PACE GAUGE: k = actual ÷ plan, 1.0 at mid-scale.
+  // Colour is burn temperature: cold / steady / hot.
+  // ============================================================
+  const K_MIN = 0.5, K_MAX = 1.6, K_LO = 0.85, K_HI = 1.15;
+  const heatOf = (k) => k < K_LO ? 'cold' : k <= K_HI ? 'warm' : 'hot';
+  const callOf = (k) => k < K_LO ? 'Push harder' : k <= K_HI ? 'Hold the pace' : 'Ease off';
+  function paceDial(container, { k, kF }) {
+    const W = 286, H = 196, cx = 143, cy = 148, R = 104, A0 = 177, SW = 186;
+    const s = svg(container, W, H);
+    const ang = (v) => A0 + SW * Math.max(0, Math.min(1, (v - K_MIN) / (K_MAX - K_MIN)));
+    const pt = (ad, r) => [cx + r * Math.cos(ad * Math.PI / 180), cy + r * Math.sin(ad * Math.PI / 180)];
+    const arc = (v0, v1, r) => { const x = ang(v0), y = ang(v1), [x0, y0] = pt(x, r), [x1, y1] = pt(y, r); return `M${x0},${y0} A${r},${r} 0 ${y - x > 180 ? 1 : 0} 1 ${x1},${y1}`; };
+    el('path', { d: arc(K_MIN, K_MAX, R), class: 'd-track' }, s);
+    [[K_MIN, K_LO, 'var(--cold)'], [K_LO, K_HI, 'var(--accent)'], [K_HI, K_MAX, 'var(--bad)']]
+      .forEach(([x, y, col]) => el('path', { d: arc(x + .012, y - .012, R + 15), class: 'd-zone', stroke: col }, s));
+    [K_LO, K_HI].forEach((v) => { const [x0, y0] = pt(ang(v), R - 9), [x1, y1] = pt(ang(v), R + 23); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'd-tick' }, s); });
+    // the needles grow out of the axis; the thin dashed one is Fable, on its own budget and pace
+    const needle = (v, cls) => { const [ix, iy] = pt(ang(v), 5), [ox, oy] = pt(ang(v), R - 15); el('line', { x1: ix, y1: iy, x2: ox, y2: oy, class: cls }, s); };
+    if (kF != null) needle(kF, 'd-needle-alt');
+    needle(k, 'd-needle');
+    el('circle', { cx, cy, r: 4.5, class: 'd-hub' }, s);
+    // the reading sits below the axis: at “steady” the needle points up and would strike through it
+    text(s, cx, cy + 36, '×' + ru(Math.max(k, kF ?? 0), 2), { 'text-anchor': 'middle', class: 'd-read' });
+    text(s, ...pt(ang(K_MIN), R + 34), 'Cold', { 'text-anchor': 'start' });
+    text(s, ...pt(ang(K_MAX), R + 34), 'Hot', { 'text-anchor': 'end' });
+    text(s, cx, cy - R - 26, 'Steady', { 'text-anchor': 'middle' });
+    s.setAttribute('viewBox', '6 8 274 182');
+  }
+
+  // ============================================================
+  // PRIMARY INSTRUMENT: this week against the limit.
+  // The only question on the page with a deadline and a consequence.
+  // ============================================================
+  const DOW_WHEN = ['on Monday', 'on Tuesday', 'on Wednesday', 'on Thursday', 'on Friday', 'on Saturday', 'on Sunday'];
+  // the extrapolation has no minute-level truth, so round to the half hour rather than fake precision
+  const hhmm = (d) => { const r = new Date(Math.round(+d / 18e5) * 18e5); return String(r.getHours()).padStart(2, '0') + ':' + String(r.getMinutes()).padStart(2, '0'); };
+  const dur = (ms) => { const d = Math.floor(ms / 864e5), h = Math.floor((ms % 864e5) / 36e5); return d ? `${d} d ${h} h` : `${h} h`; };
+  function whenPhrase(d, now) {
+    const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    const diff = Math.round((day(d) - day(now)) / 864e5);
+    const when = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : diff === 2 ? 'the day after tomorrow' : DOW_WHEN[(d.getDay() + 6) % 7];
+    return `${when} around ${hhmm(d)}`;
+  }
+  function weekInstrument() {
+    const host = $('week');
+    const cur = DATA.weeks[DATA.weeks.length - 1];
+    if (!cur) { host.innerHTML = ''; return; }
+    const known = cur.pct != null;
+    const now = parseAt(DATA.generated);
+    const start = parseAt(cur.start_at || (cur.start + ' 00:00'));
+    const reset = new Date(start.getTime() + 7 * 864e5);
+    const span = reset - start;
+    const prof = weekProfile();
+    const planAt = (t) => (prof && profileFrac(prof, start, reset, t)) ?? Math.max(0, Math.min(1, (t - start) / span));
+    const plan = planAt(now);
+    const firm = plan >= 0.08;                              // in the first hours of a week the pace is not yet a pace
+    const k = known && firm ? cur.pct / 100 / plan : null;
+    const kF = cur.fable_pct != null && firm ? cur.fable_pct / 100 / plan : null;
+    const lead = k == null ? null : Math.max(k, kF ?? 0);
+    const hit = Math.max(cur.pct ?? 0, cur.fable_pct ?? 0) >= 100;
+    const heat = hit ? 'hot' : lead == null ? 'none' : heatOf(lead);
+    const left = dur(Math.max(0, reset - now));
+    host.dataset.heat = heat;
+
+    // what happens if the pace holds - that is what the instrument is for
+    let call, line;
+    if (!known) {
+      call = 'Nothing to measure with';
+      line = `The budget for ${cur.plan_label} is not calibrated, so the week has no percentage. Feed in a reading of <b>/usage</b> and the instrument comes alive.`;
+    } else if (hit) {
+      call = 'Limit spent';
+      line = `${cur.fable_pct >= 100 && cur.pct < 100 ? 'The Fable scale has hit' : 'The week has hit'} 100 %. The reset is in <b>${left}</b>, and after that you wait.`;
+    } else if (!firm) {
+      call = 'Too early to tell';
+      line = `The week has only just started: by the activity profile, <b>${ru(plan * 100, 0)} %</b> of your working time is behind you. The pace becomes readable after a few hours of work.`;
+    } else {
+      // the sentence carries only what the dial cannot: a deadline and its consequence
+      call = callOf(lead);
+      const moment = hitMoment(planAt, now, reset, lead);
+      if (heat === 'hot') {
+        line = moment
+          ? `You will hit the limit <b>${whenPhrase(moment, now)}</b> and you will be doing without it until the reset for <b>${dur(reset - moment)}</b>.`
+          : `The reset is in <b>${left}</b> the limit will not stretch.`;
+      } else if (heat === 'cold') {
+        line = `By the reset in <b>${left}</b> roughly <b>${ru(Math.max(0, 100 - lead * 100), 0)} %</b> of the weekly budget unused.`;
+      } else {
+        line = `Hold this: by the reset in <b>${left}</b> you land almost exactly on 100 %.`;
+      }
+    }
+
+    const due = ru(plan * 100, 1).replace(',', '.');
+    const rail = (id, label, pct, units, budget, thin) =>
+      `<div class="rail" id="${id}">
+         <div class="rail-head">
+           <span class="cap">${label}, ${budget != null ? `<b>${ru(units, 0)}</b> of <b>${ru(budget, 0)}</b> units` : `<b>${ru(units, 0)}</b> units against an unknown budget`}</span>
+           <span class="pct">${pct == null ? '—' : ru(pct, 0) + ' %'}</span>
+         </div>
+         <div class="track${thin ? ' thin' : ''}">
+           <i class="${thin ? 'alt' : ''}${(pct ?? 0) >= 100 ? ' full' : ''}" style="width:${Math.min(100, pct ?? 0)}%"></i>
+           <b class="due" style="left:${due}%"></b>
+         </div>
+       </div>`;
+
+    const boost = cur.boost > 1 ? ` This week's budget is raised by a promo of ${ru((cur.boost - 1) * 100, 0)} %.` : '';
+    host.innerHTML =
+      `<figure class="dial" id="dial"></figure>
+       <div class="w-read">
+         <p class="w-call">${call}</p>
+         <p class="w-line">${line}</p>
+         <div class="w-rails">
+           ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false)}
+           ${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}
+         </div>
+         <p class="w-keys"><span><i class="k-due"></i>where you should be now</span>
+            <span><i class="k-sol"></i>all models</span><span><i class="k-dsh"></i>Fable</span></p>
+         <p class="w-foot">${cur.plan_label}, week ${fmtDate(cur.start)}–${fmtDate(cur.end)}, reset ${DOW_WHEN[(reset.getDay() + 6) % 7]} ${fmtDate(cur.end)}, ${hhmm(reset)}.${boost}</p>
+       </div>`;
+
+    if (k != null) { paceDial($('dial'), { k, kF }); } else { $('dial').innerHTML = ''; }
+    if (k != null) bindTip($('dial'), `<b>Pace gauge</b> - actual ÷ plan<br><span class="k">plan for this hour</span> ${ru(plan * 100, 0)} %${prof ? '' : ' (linear: too little history for a profile)'}<br><span class="k">all models</span> ${ru(cur.pct, 0)} % → ×${ru(k, 2)}${kF != null ? `<br><span class="k">Fable</span> ${ru(cur.fable_pct, 0)} % → ×${ru(kF, 2)}` : ''}`);
+    if (known) bindTip($('rail-all'), `<b>All models</b><br>${ru(cur.units, 0)} of ${ru(cur.budget, 0)} units - ${ru(cur.pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %<br><span class="k">time elapsed</span> ${ru(100 * (now - start) / span, 0)} %`);
+    if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
+  }
+
+  // ---------- readout row ----------
+  function stats(A) {
+    const work = DATA.work_groups.reduce((s, g) => s + (A.byGroup[groupIndex[g]] || 0), 0);
+    const share = A.sec ? 100 * work / A.sec : 0;
+    const think = A.tok.output ? 100 * A.tok.thinking / A.tok.output : 0;
+    const items = [
+      { v: fmtH(A.sec), k: `active time · ${A.days.length} d · ${ru(A.sec / 3600 / Math.max(1, A.days.length), 1)} h/day`, hero: true },
+      { v: ru(share, 0) + ' %', k: 'hours on work' },
+      { v: ru(A.calls), k: `API calls against ${ru(A.msgs)} of your messages` },
+      { v: fmtTok(A.tok.output), k: `tokens out · ${ru(think, 0)} % thinking` },
+      { v: ru(A.sessions.size), k: 'sessions in the period' },
+    ];
+    $('stats').innerHTML = items.map((t) => `<div class="stat${t.hero ? ' stat-hero' : ''}"><b>${t.v}</b><span>${t.k}</span></div>`).join('');
+  }
+
+  // ============================================================
+  // PORTRAIT OF A WEEK: fill is active minutes, the dot is commits,
+  // the bar on the right is the weekday total. One artefact instead of two charts.
+  // ============================================================
+  function portrait(A) {
+    const c = $('c-portrait');
+    const W = width(c), L = 34, R = 98, T = 22, ch = 30, H = T + ch * 7 + 8;
+    const cw = (W - L - R) / 24;
+    const s = svg(c, W, H);
+    const maxA = Math.max(1, ...A.heat.flat()), maxC = Math.max(1, ...A.gitHeat.flat());
+    const rowTot = A.heat.map((r) => r.reduce((a, b) => a + b, 0));
+    const maxRow = Math.max(1, ...rowTot);
+    for (let h = 0; h < 24; h += 2) text(s, L + cw * h + cw / 2, 13, String(h), { 'text-anchor': 'middle', class: 'tick' });
+    A.heat.forEach((row, d) => {
+      text(s, L - 8, T + ch * d + ch / 2 + 4, DOW[d], { 'text-anchor': 'end', class: 'tick' });
+      row.forEach((v, h) => {
+        const x = L + cw * h, y = T + ch * d;
+        const r = el('rect', { x, y, width: cw, height: ch, rx: 3, class: 'cell mark', fill: 'var(--heat)',
+          opacity: v ? (0.10 + 0.80 * v / maxA).toFixed(2) : '0.05', tabindex: 0 }, s);
+        const cm = A.gitHeat[d][h];
+        if (cm) el('circle', { cx: x + cw / 2, cy: y + ch / 2, r: (2.2 + 4.2 * Math.sqrt(cm / maxC)).toFixed(1), class: 'dot' }, s);
+        bindTip(r, `<b>${DOW[d]}, ${h}:00–${h + 1}:00</b><br>${ru(v / 60, 0)} min of activity` + (cm ? `<br>${ru(cm)} commits` : ''));
+      });
+      const bx = W - R + 14, bw = Math.max(1, 34 * rowTot[d] / maxRow);
+      el('rect', { x: bx, y: T + ch * d + ch / 2 - 4, width: bw, height: 8, rx: 4, class: 'marg' }, s);
+      text(s, W, T + ch * d + ch / 2 + 4, fmtH(rowTot[d]), { 'text-anchor': 'end', class: 'tick' });
+    });
+    $('portrait-note').textContent = `${ru(A.commits)} commits · ${DATA.git.repos} repos · local git`;
+    $('portrait-legend').innerHTML =
+      `<span><i class="sw" style="background:var(--heat)"></i>fill is active minutes in that hour</span>` +
+      `<span><i class="sw" style="background:var(--accent)"></i>the dot is commits</span>` +
+      `<span class="muted">the bar on the right is the weekday total</span>`;
+  }
+
+  // ---------- daily bars (stacked by group) ----------
+  function daily(A) {
+    const c = $('c-daily'); const W = width(c), H = 240, L = 40, Rr = 12, T = 16, B = 28;
+    const s = svg(c, W, H);
+    const days = A.daily; if (!days.length) return;
+    const max = niceMax(Math.max(...days.map((d) => d.total)) / 3600);
+    const y = (h) => T + (H - T - B) * (1 - h / max);
+    for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: i ? 'grid' : 'axis' }, s); text(s, L - 6, y(v) + 4, ru(v, max < 5 ? 1 : 0), { 'text-anchor': 'end', class: 'tick' }); }
+    const slot = (W - L - Rr) / days.length, bw = Math.min(24, Math.max(3, slot - 2));
+    const maxDay = days.reduce((m, d) => d.total > m.total ? d : m, days[0]);
+    const every = Math.ceil(days.length / Math.floor((W - L - Rr) / 44));
+    days.forEach((d, i) => {
+      const x = L + slot * i + (slot - bw) / 2; let top = y(0);
+      const g = el('g', {}, s);
+      d.groups.forEach((sec, gi) => {
+        if (!sec) return; const h = y(0) - y(sec / 3600); const gap = top < y(0) ? 2 : 0;
+        column(g, x, top - h, bw, h - gap, GROUP_COLORS[gi], gi === lastNonZero(d.groups) ? 4 : 0); top -= h;
+      });
+      const html = `<b>${fmtDate(d.d)}</b> · ${fmtH(d.total)}<br>` + d.groups.map((sec, gi) => sec ? `<span class="k">${DATA.groups[gi].label}</span> ${fmtH(sec)}` : '').filter(Boolean).join('<br>') + `<br><span class="k">calls</span> ${ru(d.calls)}`;
+      const hit = el('rect', { x: L + slot * i, y: T, width: slot, height: H - T - B, fill: 'transparent' }, s); bindTip(hit, html);
+      if (i % every === 0) text(s, x + bw / 2, H - 8, fmtDate(d.d), { 'text-anchor': 'middle', class: 'tick' });
+      if (d === maxDay) text(s, x + bw / 2, top - 5, fmtH(d.total), { 'text-anchor': 'middle', class: 'lbl' });
+    });
+    $('legend-groups').innerHTML = DATA.groups.map((g, i) => `<span><i class="sw" style="background:${GROUP_COLORS[i]}"></i>${g.label}</span>`).join('');
+  }
+  function lastNonZero(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i]) return i; return -1; }
+
+  // ---------- limit weeks: history ----------
+  function weekly(A) {
+    const c = $('c-weekly'); const W = width(c), H = 230, L = 40, Rr = 12, T = 18, B = 40;
+    const s = svg(c, W, H);
+    const weeks = A.weeks; if (!weeks.length) return;
+    const max = Math.max(120, niceMax(Math.max(...weeks.map((w) => Math.max(w.pct || 0, w.fable_pct || 0)))));
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: i ? 'grid' : 'axis' }, s); text(s, L - 6, y(v) + 4, ru(v, 0) + '%', { 'text-anchor': 'end', class: 'tick' }); }
+    el('line', { x1: L, x2: W - Rr, y1: y(100), y2: y(100), class: 'ref' }, s); text(s, W - Rr, y(100) - 4, 'limit 100 %', { 'text-anchor': 'end', class: 'lbl' });
+    const slot = (W - L - Rr) / weeks.length, bw = Math.min(18, Math.max(4, (slot - 8) / 2));
+    weeks.forEach((w, i) => {
+      const x0 = L + slot * i + (slot - 2 * bw - 2) / 2;
+      const series = [[w.pct, 'var(--accent)'], [w.fable_pct, 'var(--r3)']];
+      series.forEach(([v, color], k) => {
+        if (v == null) return;
+        const col = column(s, x0 + k * (bw + 2), y(v), bw, y(0) - y(v), v >= 100 ? 'var(--bad)' : color);
+        if (col && w.partial) col.setAttribute('opacity', '.5');
+      });
+      if (w.pct == null) text(s, x0 + bw + 1, y(0) - 6, '?', { 'text-anchor': 'middle', class: 'lbl' });
+      const html = `<b>${fmtDate(w.start)}–${fmtDate(w.end)}</b> · ${w.plan_label}${w.boost > 1 ? ` · budget +${ru((w.boost - 1) * 100, 0)} %` : ''}${w.partial ? ' · week in progress' : ''}<br>` +
+        (w.pct != null ? `all models ${ru(w.pct, 0)} % · ${ru(w.units, 0)} of ${ru(w.budget, 0)} units` : `all models: ${ru(w.units, 0)} units, the budget for ${w.plan_label} is not calibrated`) +
+        (w.fable_pct != null ? `<br>Fable ${ru(w.fable_pct, 0)} % · ${ru(w.fable_units, 0)} of ${ru(w.fable_budget, 0)} units` : w.fable_units ? `<br>Fable ${ru(w.fable_units, 0)} units` : '');
+      const hit = el('rect', { x: L + slot * i, y: T, width: slot, height: H - T - B, fill: 'transparent' }, s); bindTip(hit, html);
+      text(s, x0 + bw + 1, H - 22, fmtDate(w.start), { 'text-anchor': 'middle', class: 'tick' });
+      if (i === 0 || weeks[i - 1].plan !== w.plan) text(s, x0 + bw + 1, H - 8, w.plan_label, { 'text-anchor': 'middle' });
+    });
+    const leg = document.createElement('div'); leg.className = 'legend';
+    leg.innerHTML = `<span><i class="sw" style="background:var(--accent)"></i>all models</span><span><i class="sw" style="background:var(--r3)"></i>Fable</span><span class="muted">? - that plan's budget is not calibrated</span>`;
+    c.appendChild(leg);
+    const b = $('limit-badge'); const nObs = DATA.limits.observations.length;
+    b.textContent = DATA.limits.calibrated ? `${DATA.limits.plan_now}: calibrated · ${nObs} readings` : `${DATA.limits.plan_now}: not calibrated`;
+    b.className = 'badge' + (DATA.limits.calibrated ? '' : ' warn');
+    const bud = DATA.limits.budgets[DATA.limits.plan_now] || {};
+    $('limit-note').textContent = DATA.limits.calibrated
+      ? `Budget ${DATA.limits.plan_now} was recovered from /usage readings (${DATA.limits.observations.map((o) => `${o.at || o.date}: ${o.pct} %${o.fable_pct != null ? ` / Fable ${o.fable_pct} %` : ''}`).join('; ')}): ${ru(bud.all || 0, 0)} units a week, Fable ${bud.fable ? ru(bud.fable, 0) + ' units' : '—'}; week windows start ${DATA.limits.week_reset || 'Monday'}. Weeks on other plans have no percentage without a reading of their own.`
+      : `There are no /usage readings for ${DATA.limits.plan_now} yet, so no percentage. Feed it one: python usage_report.py --observe <all models %> --fable <Fable %> --reset "<reset date>".`;
+  }
+
+  // ---------- cumulative hours ----------
+  function cumulative(A) {
+    const c = $('c-cum'); const W = width(c), H = 220, L = 40, Rr = 56, T = 16, B = 28;
+    const s = svg(c, W, H);
+    const pts = A.cum; if (!pts.length) return;
+    const max = niceMax(pts[pts.length - 1].sec / 3600);
+    const y = (h) => T + (H - T - B) * (1 - h / max), x = (i) => L + (W - L - Rr) * (pts.length > 1 ? i / (pts.length - 1) : 0.5);
+    for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: i ? 'grid' : 'axis' }, s); text(s, L - 6, y(v) + 4, ru(v, 0), { 'text-anchor': 'end', class: 'tick' }); }
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i)},${y(p.sec / 3600)}`).join(' ');
+    el('path', { d: `${line} L${x(pts.length - 1)},${y(0)} L${x(0)},${y(0)} Z`, fill: 'var(--accent)', opacity: '.1' }, s);
+    el('path', { d: line, fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, s);
+    const last = pts[pts.length - 1];
+    el('circle', { cx: x(pts.length - 1), cy: y(last.sec / 3600), r: 5, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 }, s);
+    text(s, x(pts.length - 1) + 9, y(last.sec / 3600) + 4, fmtH(last.sec), { class: 'lbl' });
+    const every = Math.ceil(pts.length / Math.floor((W - L - Rr) / 48));
+    pts.forEach((p, i) => { if (i % every === 0) text(s, x(i), H - 8, fmtDate(p.d), { 'text-anchor': 'middle', class: 'tick' }); });
+    pts.forEach((p, i) => { const hit = el('rect', { x: x(i) - (W - L - Rr) / pts.length / 2, y: T, width: (W - L - Rr) / pts.length, height: H - T - B, fill: 'transparent' }, s); bindTip(hit, `<b>${fmtDate(p.d)}</b><br>cumulative ${fmtH(p.sec)}`); });
+  }
+
+  // ---------- commits by day ----------
+  function gitDaily(A) {
+    const c = $('c-gitdaily'); const W = width(c), H = 200, L = 36, Rr = 12, T = 16, B = 28;
+    const s = svg(c, W, H);
+    const days = A.gitDaily; if (!days.length) { text(s, L, H / 2, 'no commits in this period'); return; }
+    const max = niceMax(Math.max(...days.map((d) => d.total)));
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: i ? 'grid' : 'axis' }, s); text(s, L - 6, y(v) + 4, ru(v, 0), { 'text-anchor': 'end', class: 'tick' }); }
+    const slot = (W - L - Rr) / days.length, bw = Math.min(24, Math.max(2, slot - 2));
+    const every = Math.ceil(days.length / Math.floor((W - L - Rr) / 44));
+    days.forEach((d, i) => {
+      const x = L + slot * i + (slot - bw) / 2; let top = y(0);
+      d.groups.forEach((n, gi) => { if (!n) return; const h = y(0) - y(n); column(s, x, top - h, bw, h - (top < y(0) ? 2 : 0), GROUP_COLORS[gi], gi === lastNonZero(d.groups) ? 4 : 0); top -= h; });
+      const hit = el('rect', { x: L + slot * i, y: T, width: slot, height: H - T - B, fill: 'transparent' }, s);
+      bindTip(hit, `<b>${fmtDate(d.d)}</b> · ${ru(d.total)} commits<br>` + d.groups.map((n, gi) => n ? `<span class="k">${DATA.groups[gi].label}</span> ${ru(n)}` : '').filter(Boolean).join('<br>'));
+      if (i % every === 0) text(s, x + bw / 2, H - 8, fmtDate(d.d), { 'text-anchor': 'middle', class: 'tick' });
+    });
+  }
+
+  // ---------- monthly trend: rows, not two empty charts ----------
+  function months() {
+    const c = $('c-months');
+    const by = {};
+    for (const day of DATA.days) { const m = day.d.slice(0, 7); const M = by[m] || (by[m] = { sec: 0, out: 0, calls: 0 }); for (const v of Object.values(day.p)) { M.sec += v.sec; for (const x of Object.values(v.models)) { M.out += x.output; M.calls += x.calls; } } }
+    const keys = Object.keys(by).sort(); if (!keys.length) { c.innerHTML = ''; return; }
+    const maxH = Math.max(...keys.map((m) => by[m].sec / 3600)) || 1;
+    const maxO = Math.max(...keys.map((m) => by[m].out / 1e6)) || 1;
+    c.innerHTML = `<div class="months"><div class="row hd"><span></span><span>active hours</span><span></span><span>output tokens</span><span></span></div>` +
+      keys.map((m) => {
+        const h = by[m].sec / 3600, o = by[m].out / 1e6, [yy, mm] = m.split('-');
+        return `<div class="row" title="${fmtMonth(m)} · ${ru(by[m].calls)} calls">
+          <span class="m">${MONTHS[+mm - 1].slice(0, 3)} ${yy.slice(2)}</span>
+          <div class="bar"><i style="width:${(100 * h / maxH).toFixed(1)}%;background:var(--s1)"></i></div>
+          <span class="num">${ru(h, 0)} h</span>
+          <div class="bar"><i style="width:${(100 * o / maxO).toFixed(1)}%;background:var(--r3)"></i></div>
+          <span class="num">${ru(o, 1)} M</span></div>`;
+      }).join('') + '</div>';
+  }
+
+  // ---------- models: ring ----------
+  function models(A) {
+    const c = $('c-models'); c.innerHTML = '';
+    const entries = Object.entries(A.byModel).filter(([m, v]) => v.output > 0).sort((a, b) => b[1].output - a[1].output);
+    const top = entries.slice(0, 3), rest = entries.slice(3);
+    if (rest.length) top.push(['Other', rest.reduce((acc, [, v]) => ({ calls: acc.calls + v.calls, output: acc.output + v.output }), { calls: 0, output: 0 })]);
+    const total = top.reduce((s, [, v]) => s + v.output, 0) || 1;
+    const wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;gap:18px;align-items:center;flex-wrap:wrap';
+    const holder = document.createElement('div'); holder.style.cssText = 'flex:none;width:150px'; wrap.appendChild(holder);
+    const s = svg(holder, 150, 150); const cx = 75, cy = 75, R = 62, r = 44;
+    let a0 = -Math.PI / 2;
+    top.forEach(([m, v], i) => {
+      const a1 = a0 + 2 * Math.PI * v.output / total; const gap = 0.02;
+      const p = (a, rad) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+      const [x0, y0] = p(a0 + gap, R), [x1, y1] = p(a1 - gap, R), [x2, y2] = p(a1 - gap, r), [x3, y3] = p(a0 + gap, r);
+      const big = a1 - a0 > Math.PI ? 1 : 0;
+      const seg = el('path', { d: `M${x0},${y0} A${R},${R} 0 ${big} 1 ${x1},${y1} L${x2},${y2} A${r},${r} 0 ${big} 0 ${x3},${y3} Z`, fill: RAMP[i], class: 'mark', tabindex: 0 }, s);
+      bindTip(seg, `<b>${m === 'Other' ? m : modelLabel(m)}</b><br>${fmtTok(v.output)} out · ${ru(100 * v.output / total, 0)} %<br><span class="k">calls</span> ${ru(v.calls)}`);
+      a0 = a1;
+    });
+    text(s, cx, cy - 2, top.length ? ru(100 * top[0][1].output / total, 0) + ' %' : '—', { 'text-anchor': 'middle', class: 'lbl', style: 'font-size:20px' });
+    text(s, cx, cy + 14, top.length ? modelLabel(top[0][0]) : '', { 'text-anchor': 'middle' });
+    const leg = document.createElement('div'); leg.className = 'legend'; leg.style.flexDirection = 'column'; leg.style.gap = '8px';
+    leg.innerHTML = top.map(([m, v], i) => `<span><i class="sw" style="background:${RAMP[i]}"></i>${m === 'Other' ? m : modelLabel(m)} <span class="mono muted">${fmtTok(v.output)} · ${ru(v.calls)} calls</span></span>`).join('');
+    wrap.appendChild(leg); c.appendChild(wrap);
+  }
+
+  // ---------- token mix: one bar, not four invisible ones ----------
+  function tokens(A) {
+    const c = $('c-tokens');
+    const parts = [
+      { k: 'Cache reads', v: A.tok.cache_read }, { k: 'Cache writes and input', v: A.tok.cache_create + A.tok.input },
+      { k: 'Answer', v: A.tok.output - A.tok.thinking }, { k: 'Thinking', v: A.tok.thinking }];
+    const total = parts.reduce((s, p) => s + p.v, 0) || 1;
+    const pc = (v) => 100 * v / total;
+    c.innerHTML =
+      `<div class="stack">${parts.map((p, i) => `<i style="flex:${p.v} 1 0;background:${RAMP[i]}"></i>`).join('')}</div>` +
+      `<div class="stack-list">${parts.map((p, i) => `<div><i class="sw" style="background:${RAMP[i]}"></i><span><b>${p.k}</b></span><span class="mono">${fmtTok(p.v)} · ${ru(pc(p.v), pc(p.v) < 1 ? 2 : 0)} %</span></div>`).join('')}</div>`;
+    $('tok-total').textContent = `total ${fmtTok(total)} tokens`;
+  }
+
+  // ---------- where the spend goes ----------
+  function insights(A) {
+    const I = { units: 0, ctx: { lt50: 0, '50_100': 0, '100_150': 0, gt150: 0 }, effort: {}, side: 0, cc: 0, skills: {}, sessions: 0, short: 0, first: 0 };
+    for (const day of A.days) for (const v of Object.values(day.p)) {
+      const x = v.ins; if (!x) continue;
+      I.units += x.units || 0; I.side += x.side_units || 0; I.cc += x.cache_create_units || 0;
+      I.sessions += x.sessions || 0; I.short += x.sessions_short || 0; I.first += x.first_call_units || 0;
+      for (const k of Object.keys(I.ctx)) I.ctx[k] += (x.ctx || {})[k] || 0;
+      for (const [k, n] of Object.entries(x.effort || {})) I.effort[k] = (I.effort[k] || 0) + n;
+      for (const [k, n] of Object.entries(x.skills || {})) I.skills[k] = (I.skills[k] || 0) + n;
+    }
+    const modelUnits = {}; let modelTotal = 0;
+    for (const day of A.days) for (const v of Object.values(day.p)) for (const [m, t] of Object.entries(v.models)) {
+      const w = m.startsWith('claude-fable') ? [10, 12.5, 0.25, 50] : m.startsWith('claude-sonnet-5') ? [2, 2.5, 0.2, 10] : m.startsWith('claude-sonnet') ? [3, 3.75, 0.3, 15] : m.startsWith('claude-haiku') ? [1, 1.25, 0.1, 5] : [5, 6.25, 0.5, 25];
+      const u = (t.input * w[0] + t.cache_create * w[1] + t.cache_read * w[2] + t.output * w[3]) / 1e6;
+      modelUnits[m] = (modelUnits[m] || 0) + u; modelTotal += u;
+    }
+    const pct = (x, of) => of ? 100 * x / of : 0;
+    const P = (x, of, d = 0) => ru(pct(x, of), d) + ' %';
+    const c = $('c-advice'); c.innerHTML = '';
+    if (!I.units) { c.textContent = 'No spend breakdown was collected for this period - rebuild the dashboard.'; return; }
+    const calls = Object.values(I.effort).reduce((a, b) => a + b, 0);
+    const skillTop = Object.entries(I.skills).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const skillAll = Object.values(I.skills).reduce((a, b) => a + b, 0);
+    const mini = (title, rows, fill) => `<h3>${title}</h3><div class="mini">` + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${pct(v, of).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
+    const left = document.createElement('div');
+    left.innerHTML =
+      mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['over 150k', I.ctx.gt150, I.units]], 'var(--r2)') +
+      mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)') +
+      mini('Spend by model', Object.entries(modelUnits).filter(([, u]) => u > 0).sort((a, b) => b[1] - a[1]).map(([m, u]) => [modelLabel(m), u, modelTotal]), 'var(--s1)') +
+      (skillTop.length ? mini('Skill text in context', skillTop.map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');
+    const tips = [];
+    const gt = pct(I.ctx.gt150, I.units), gt100 = pct(I.ctx['100_150'] + I.ctx.gt150, I.units);
+    if (gt >= 50) tips.push(['warn', `${ru(gt, 0)} % of the spend goes to calls with a context over 150k`, 'A long context is expensive even from cache: every call re-reads all of it. <b>/compact</b> in the middle of a long task, <b>/clear</b> when the subject changes; send big dumps and logs to a file, not into the chat.']);
+    else if (gt100 >= 50) tips.push(['warn', `${ru(gt100, 0)} % of the spend runs on a context over 100k`, 'Not critical yet, but climbing: <b>/compact</b> after large reads, and move work on a different subject into a new session.']);
+    else tips.push(['ok', `Context is healthy: ${ru(gt, 0)} % of the spend is above 150k`, 'Keep splitting work across sessions.']);
+    const xh = pct(I.effort.xhigh || 0, calls), think = pct(A.tok.thinking, A.tok.output);
+    if (xh >= 80) tips.push(['warn', `${ru(xh, 0)} % of calls run at xhigh effort, thinking is ${ru(think, 0)} % of output`, 'xhigh is the default and it is what hard problems need. For mechanical work (edits from a list, builds, renames, routine reports) drop the effort to <b>high</b> or <b>medium</b> - output costs a fraction and quality on that kind of work does not drop.']);
+    const fableU = Object.entries(modelUnits).filter(([m]) => m.startsWith('claude-fable')).reduce((a, [, u]) => a + u, 0);
+    const fableCalls = Object.entries(A.byModel).filter(([m]) => m.startsWith('claude-fable')).reduce((a, [, v]) => a + v.calls, 0);
+    if (pct(fableU, modelTotal) >= 15) tips.push(['warn', `Fable 5.1: ${P(fableCalls, A.calls)} of the calls but ${P(fableU, modelTotal)} of the spend`, 'Fable costs twice what Opus does per token and runs on its own weekly scale. Keep it for problems Opus has already stumbled on; everything else goes to <b>Opus 5</b>, and routine work to <b>Sonnet 5</b>.']);
+    if (pct(skillAll, I.units) >= 5) tips.push(['warn', `Skills in context: ${P(skillAll, I.units)} of the spend (${skillTop.slice(0, 3).map(([k]) => k).join(', ')})`, 'A loaded skill sits in the context until the session ends and is re-read by every call. Reach for heavy skills only when you truly need them; once a skill has done its job, <b>/compact</b> or a fresh session.']);
+    if (pct(I.side, I.units) >= 10) tips.push(['info', `Subagents: ${P(I.side, I.units)} of the spend`, 'Every subagent starts from zero and reads the context again. They earn their keep on wide searches; for linear work the main session is cheaper.']);
+    if (I.sessions && pct(I.short, I.sessions) >= 25) tips.push(['warn', `${ru(I.short)} of ${ru(I.sessions)} sessions were shorter than three calls`, `Every start writes the system prompt, CLAUDE.md and memory into cache (${ru(I.sessions ? I.first / I.sessions : 0, 1)} units on average). Put small questions into the session you have open, or <b>claude -c</b>rather than a new window.`]);
+    if (pct(I.cc, I.units) >= 25) tips.push(['warn', `Cache writes are ${P(I.cc, I.units)} of the spend`, 'The cache drops whenever the start of the context changes: edits to CLAUDE.md, a different set of tools or MCP servers, restarts. Leave CLAUDE.md alone mid-session; switch off MCP servers you do not need.']);
+    const done = A.weeks.filter((w) => !w.partial && !w.estimated && w.pct != null), avg = done.length ? done.reduce((a, w) => a + w.pct, 0) / done.length : null;
+    if (avg != null && DATA.limits.calibrated) {
+      const spareU = done.reduce((s, w) => s + Math.max(0, w.budget - w.units), 0) / done.length;
+      let pu = 0; for (const day of A.days) for (const v of Object.values(day.p)) pu += (v.ins || {}).units || 0;
+      const uph = A.sec ? pu / (A.sec / 3600) : 0, spareH = uph ? spareU / uph : 0;
+      tips.push([avg > 85 ? 'warn' : 'ok',
+        avg > 85 ? `The weekly limit is on the edge: on average ${ru(avg, 0)} %` : `Leaving ${ru(100 - avg, 0)} % ≈ ${ru(spareH, 0)} h of work a week`,
+        avg > 85 ? 'The advice above buys headroom faster than a bigger plan does.' : `Paid for and left unburnt: ${ru(spareU, 0)} units a week at a pace of ${ru(uph, 1)} units/h. There is nothing to save here: reach for Fable and subagents on the hard problems. At this pace optimisation is about speed and quality, not quota.`]);
+    }
+    const right = document.createElement('ol');
+    right.innerHTML = tips.map(([kind, head, how]) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span></div></li>`).join('');
+    c.appendChild(left); c.appendChild(right);
+  }
+
+  // ---------- projects table ----------
+  function projects(A) {
+    const rows = Object.entries(A.byProject).sort((a, b) => (b[1].sec - a[1].sec) || ((b[1].commits || 0) - (a[1].commits || 0)));
+    const maxSec = rows.length ? Math.max(1, rows[0][1].sec) : 1;
+    $('t-projects').innerHTML = `<thead><tr><th>Project</th><th>Group</th><th class="num">Hours</th><th>Share</th><th class="num">Calls</th><th class="num">Output</th><th class="num">Sessions</th><th class="num">Commits</th></tr></thead><tbody>` +
+      rows.map(([name, p]) => { const gi = groupIndex[p.group] ?? 3; return `<tr><td>${name}</td><td><span class="chip"><i class="sw" style="background:${GROUP_COLORS[gi]}"></i>${groupLabel[p.group] || p.group}</span></td><td class="num">${p.sec ? ru(p.sec / 3600, 1) : '—'}</td><td><div class="bar" title="${ru(A.sec ? 100 * p.sec / A.sec : 0, 0)} %"><i style="width:${100 * p.sec / maxSec}%;background:${GROUP_COLORS[gi]}"></i></div></td><td class="num">${p.calls ? ru(p.calls) : '—'}</td><td class="num">${p.output ? fmtTok(p.output) : '—'}</td><td class="num">${p.sessions.size || '—'}</td><td class="num">${p.commits ? ru(p.commits) : '—'}</td></tr>`; }).join('') + '</tbody>';
+    $('proj-note').textContent = `${rows.length} projects · ${fmtH(A.sec)} · ${ru(A.commits)} git commits`;
+  }
+
+  // ---------- header, theme, footer ----------
+  function header(A) {
+    const first = A.days.length ? A.days[0].d : '—', last = A.days.length ? A.days[A.days.length - 1].d : '—';
+    $('range').textContent = `${current.label}: ${fmtDate(first)} — ${fmtDate(last)} · ${A.days.length} days with activity`;
+    $('eyebrow').textContent = `Claude Code · built ${DATA.generated} · ${DATA.limits.plan_now}`;
+    $('periods').innerHTML = periods.map((p) => `<button type="button" id="p-${p.id}" data-id="${p.id}" aria-pressed="${p.id === current.id}">${p.label}</button>`).join('');
+    $('periods').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { current = periods.find((p) => p.id === b.dataset.id); try { localStorage.setItem('ccusage.period', current.id); } catch (e) { /* no storage */ } render(); }));
+  }
+  function initTheme() {
+    const root = document.documentElement, btn = $('theme');
+    let saved = null; try { saved = localStorage.getItem('ccusage.theme'); } catch (e) { /* no storage */ }
+    if (saved) root.setAttribute('data-theme', saved);
+    const paint = () => { btn.textContent = root.getAttribute('data-theme') === 'light' ? 'dark theme' : 'light theme'; };
+    paint();
+    btn.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('ccusage.theme', next); } catch (e) { /* no storage */ }
+      paint();
+    });
+  }
+  function method() {
+    $('method').innerHTML = `<p><b>How this is counted.</b> The source is the Claude Code session logs (<span class="mono">~/.claude/projects/*/*.jsonl</span>); one API call = one <span class="mono">requestId</span>. Active time is the sum of gaps between adjacent records no longer than ${DATA.idle_minutes} min; idling with the window open does not count. Daily snapshots accumulate in <span class="mono">history.json</span>, so days Claude Code has already pruned stay with you.</p>
+<p><b>The limit.</b> Anthropic does not publish limits in tokens. A week's tokens are converted into load units (weight by model and token type = API prices); each plan's weekly budget is recovered from a <span class="mono">/usage</span> reading taken on that plan, separately for “all models” and for Fable. A plan with no reading of its own gets no percentage: scaling “Pro = Max ÷ 5” was tested and does not hold.</p>
+<p><b>Pace.</b> “Plan” is the share of the weekly limit that should be spent by this hour if you burn exactly 100 % by the reset. It follows your activity profile rather than the calendar, over the last ${PROFILE_DAYS} days (active seconds summed into each of the 168 hours of a week, with a flat blend of ${ru(PROFILE_FLAT * 100, 0)} %): nights and weekends weigh less than a working day. The gauge shows <span class="mono">k = actual ÷ plan</span>: 1.0 lands you on exactly 100 %, below that the limit goes unused, above it you run out before the reset. With fewer than ${PROFILE_MIN_DAYS} days of activity the plan is linear in time.</p>
+<p><b>Commits.</b> Local repos (${DATA.git.repos}), authors ${DATA.git.authors.map((x) => `<span class="mono">${x}</span>`).join(', ')} - the part that reaches GitHub after a push.</p>
+<p>Settings: <span class="mono">${DATA.config_path}</span> · cards drag by their heading and the order is remembered in this browser — <a href="#" id="reset-order">reset the order</a></p>`;
+    $('reset-order').addEventListener('click', (e) => { e.preventDefault(); try { localStorage.removeItem('ccusage.order.board'); } catch (x) { /* no storage */ } location.reload(); });
+  }
+
+  // ---------- card dragging ----------
+  function applyOrder(container, key) {
+    let ids = null; try { ids = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { /* no storage */ }
+    if (!Array.isArray(ids)) return;
+    ids.forEach((id) => { const n = document.getElementById(id); if (n && n.parentElement === container) container.appendChild(n); });
+  }
+  function saveOrder(container, key) {
+    try { localStorage.setItem(key, JSON.stringify([...container.children].map((n) => n.id))); } catch (e) { /* no storage */ }
+  }
+  function sortable(container, key, handle) {
+    let dragged = null;
+    container.addEventListener('mousedown', (e) => { const it = e.target.closest('[draggable]'); if (it && handle) it.draggable = !!e.target.closest(handle); });
+    container.addEventListener('dragstart', (e) => {
+      const it = e.target.closest('[draggable]'); if (!it || it.parentElement !== container) return;
+      dragged = it; it.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', it.id);
+    });
+    container.addEventListener('dragover', (e) => {
+      if (!dragged) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      const over = e.target.closest('[draggable]'); if (!over || over === dragged || over.parentElement !== container) return;
+      const r = over.getBoundingClientRect(), wide = r.width > container.clientWidth * 0.8;
+      const after = wide ? (e.clientY - r.top) > r.height / 2 : (e.clientX - r.left) > r.width / 2;
+      container.insertBefore(dragged, after ? over.nextSibling : over);
+    });
+    container.addEventListener('drop', (e) => e.preventDefault());
+    container.addEventListener('dragend', () => { if (!dragged) return; dragged.classList.remove('dragging'); if (handle) dragged.draggable = true; dragged = null; saveOrder(container, key); });
+  }
+
+  function render() {
+    const A = aggregate(current);
+    header(A); weekInstrument(); stats(A); portrait(A); daily(A); weekly(A); cumulative(A);
+    gitDaily(A); months(); models(A); tokens(A); insights(A); projects(A); method();
+  }
+  initTheme();
+  [...$('board').children].forEach((n) => { n.draggable = true; });
+  applyOrder($('board'), 'ccusage.order.board');
+  sortable($('board'), 'ccusage.order.board', 'header');
+  render();
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+})();
+</script>

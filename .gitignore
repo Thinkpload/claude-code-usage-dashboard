@@ -1,0 +1,24 @@
+# Personal data — never commit. The tool writes these into its output dir
+# (~/.claude/usage-report by default); these rules are a second line of defence
+# in case someone points --out-dir at the repo.
+config.json
+history.json
+data.json
+dashboard.html
+dashboard.artifact.html
+dashboard.*.html
+run.log
+
+# Design round-trip leftovers
+template.bak.html
+*.design.html
+* - Copy.*
+
+# Generated demo output (rebuilt by CI; keep the generator, not the artefact)
+demo/index.html
+demo/data.json
+
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
