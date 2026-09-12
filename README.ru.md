@@ -1,5 +1,9 @@
 # Счётчик Claude Code
 
+[![PyPI](https://img.shields.io/pypi/v/claude-usage-dashboard)](https://pypi.org/project/claude-usage-dashboard/)
+[![CI](https://github.com/Thinkpload/claude-code-usage-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Thinkpload/claude-code-usage-dashboard/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Одна самодостаточная HTML-страница, отвечающая на то, о чём молчит `/usage`: куда ушли часы в
 Claude Code, какие проекты их съели и выйдет ли текущий темп ровно в недельный лимит или оставит
 половину неиспользованной.
@@ -27,10 +31,11 @@ Claude Code, какие проекты их съели и выйдет ли те
 Ничего не устанавливая и не клонируя:
 
 ```bash
-uvx --from git+https://github.com/Thinkpload/claude-code-usage-dashboard claude-usage-dashboard --open
+uvx claude-usage-dashboard --open
 ```
 
-Или забрать себе и запускать на месте:
+`pipx run claude-usage-dashboard --open` делает то же самое, а `pip install claude-usage-dashboard`
+оставит команду насовсем. Или забрать себе и запускать на месте:
 
 ```bash
 git clone https://github.com/Thinkpload/claude-code-usage-dashboard

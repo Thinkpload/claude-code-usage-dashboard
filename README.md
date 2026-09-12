@@ -1,5 +1,10 @@
 # Claude Code usage dashboard
 
+[![PyPI](https://img.shields.io/pypi/v/claude-usage-dashboard)](https://pypi.org/project/claude-usage-dashboard/)
+[![CI](https://github.com/Thinkpload/claude-code-usage-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Thinkpload/claude-code-usage-dashboard/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/pypi/pyversions/claude-usage-dashboard)](https://pypi.org/project/claude-usage-dashboard/)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A single self-contained HTML page that answers the questions `/usage` does not: where your Claude
 Code hours actually went, which projects ate them, and whether this week's pace lands you on the
 weekly limit or wastes half of it.
@@ -29,10 +34,11 @@ no API key, no network. Pure Python, no dependencies.
 Nothing to install, nothing to clone:
 
 ```bash
-uvx --from git+https://github.com/Thinkpload/claude-code-usage-dashboard claude-usage-dashboard --open
+uvx claude-usage-dashboard --open
 ```
 
-Or take a copy and run it in place:
+`pipx run claude-usage-dashboard --open` does the same, and `pip install claude-usage-dashboard`
+keeps it around. Or take a copy and run it in place:
 
 ```bash
 git clone https://github.com/Thinkpload/claude-code-usage-dashboard
