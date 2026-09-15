@@ -126,6 +126,40 @@ def test_calibration_per_plan_with_fable_and_windows():
     assert cur["plan"] == "max5" and cur["partial"] and abs(cur["pct"] - 20) < 1e-6 and abs(cur["fable_pct"] - 50) < 1e-6, cur
 
 
+def test_parse_usage_from_endpoint_payload():
+    cfg = dict(CFG)
+    payload = {"limits": [                                             # the shape api/oauth/usage returned on 2026-09-14
+        {"kind": "session", "group": "session", "percent": 49, "resets_at": "2026-09-14T15:30:00.891907+00:00", "scope": None},
+        {"kind": "weekly_all", "group": "weekly", "percent": 48, "resets_at": "2026-09-17T17:00:00.891939+00:00", "scope": None},
+        {"kind": "weekly_scoped", "group": "weekly", "percent": 49, "resets_at": "2026-09-17T16:59:59.892328+00:00",
+         "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}}]}
+    obs, reset = ur.parse_usage(payload, cfg)
+    assert obs == {"pct": 48, "fable_pct": 49} and reset == "2026-09-17 20:00", (obs, reset)   # UTC -> +3
+    assert ur.parse_usage({"limits": []}, cfg) == (None, None)
+    # a rerun within the hour replaces the last reading; later on it appends
+    cfg["observations"] = [{"at": "2026-09-14 16:00", "pct": 48}]
+    ur.record_observation(cfg, {"at": "2026-09-14 16:40", "pct": 49}, ur.parse_local("2026-09-14 16:40", cfg))
+    assert [o["pct"] for o in cfg["observations"]] == [49]
+    ur.record_observation(cfg, {"at": "2026-09-14 18:00", "pct": 51}, ur.parse_local("2026-09-14 18:00", cfg))
+    assert [o["pct"] for o in cfg["observations"]] == [49, 51]
+
+
+def test_calibration_pools_observations_by_size():
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "max5"}]
+    cfg["week_reset"] = "2026-09-17 20:00"
+    cfg["boosts"] = []
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units a day
+    hours = [0] * 24; hours[10] = 3600
+    day = lambda: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": {"claude-opus-5": opus}}}
+    hist = {"days": {f"2026-09-{d}": day() for d in ("11", "12", "13")}}                        # window opens Thu 10.09 20:00
+    # an early reading of 1 % (rounded; really 25/1000 = 2.5 %) and a late one of 8 % (75/1000 = 7.5 %) at a budget of 1000
+    cfg["observations"] = [{"at": "2026-09-11 12:00", "pct": 1}, {"at": "2026-09-13 12:00", "pct": 8}]
+    b = ur.calibrate(hist, cfg)["max5"]["all"]
+    assert abs(b - (25 + 75) / (0.01 + 0.08)) < 1e-6, b        # ~1111: the pooled ratio, not the mean of 2500 and 937
+    assert 1000 < b < 1200
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

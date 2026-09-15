@@ -5,9 +5,10 @@ Reads the session logs in ~/.claude/projects/**/*.jsonl, accumulates daily snaps
 ~/.claude/usage-report/history.json (so days Claude Code has already pruned survive) and
 renders dashboard.html + dashboard.artifact.html.
 
-    claude-usage-dashboard                 # rescan and build
+    claude-usage-dashboard                 # rescan and build; the /usage reading is fetched with your login token
     claude-usage-dashboard --open          # ...and open it in a browser
-    claude-usage-dashboard --observe 20 --fable 34          # /usage reading: all-models week and Fable
+    claude-usage-dashboard --no-fetch      # ...without touching the login token or the network
+    claude-usage-dashboard --observe 20 --fable 34          # /usage reading by hand: all-models week and Fable
     claude-usage-dashboard --observe 20 --fable 34 --reset "2026-09-17 20:00" --factor 1.5 --at "2026-09-12 05:50"
 
 From a checkout, with nothing installed: python -m claude_usage_dashboard
@@ -20,6 +21,8 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -29,6 +32,8 @@ OUT_DIR = os.path.join(HOME, ".claude", "usage-report")
 CONFIG_PATH = os.path.join(OUT_DIR, "config.json")
 HISTORY_PATH = os.path.join(OUT_DIR, "history.json")
 TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html")
+CREDENTIALS_PATH = os.path.join(HOME, ".claude", ".credentials.json")
+USAGE_URL = "https://api.anthropic.com/api/oauth/usage"   # the endpoint behind Claude Code's own /usage panel
 
 TOKEN_FIELDS = ("input", "cache_create", "cache_read", "output", "thinking")
 
@@ -364,7 +369,7 @@ def calibrate(history, cfg):
     """Per-plan budgets: {plan: {"all": units, "fable": units|None, "estimated": bool}}.
     A plan's own /usage readings calibrate it; otherwise it is scaled from a calibrated plan by
     ratio (an estimate); with no readings at all, the factory guess."""
-    bases = defaultdict(lambda: {"all": [], "fable": []})
+    bases = defaultdict(lambda: {"all": [0.0, 0.0], "fable": [0.0, 0.0]})   # [sum of units, sum of budget shares]
     for o in cfg.get("observations", []):
         t = parse_local(o.get("at") or o["date"], cfg)
         ws = window_start(t, cfg)
@@ -372,15 +377,18 @@ def calibrate(history, cfg):
         factor = o.get("budget_factor") or boost_factor(t, cfg)
         used = units_between(history, ws, t, cfg)
         if o.get("pct", 0) > 0 and used > 0:
-            bases[plan]["all"].append(used / (o["pct"] / 100.0) / factor)
+            bases[plan]["all"][0] += used
+            bases[plan]["all"][1] += o["pct"] / 100.0 * factor
         used_f = units_between(history, ws, t, cfg, FABLE)
         if o.get("fable_pct", 0) > 0 and used_f > 0:
-            bases[plan]["fable"].append(used_f / (o["fable_pct"] / 100.0) / factor)
-    avg = lambda xs: sum(xs) / len(xs) if xs else None
+            bases[plan]["fable"][0] += used_f
+            bases[plan]["fable"][1] += o["fable_pct"] / 100.0 * factor
+    # a pooled ratio: early-week readings (1-3 %, rounded to whole percent) weigh by their size, not equally
+    ratio = lambda acc: acc[0] / acc[1] if acc[1] else None
     out = {}
     for plan, pc in cfg["plans"].items():
-        b = bases.get(plan, {"all": [], "fable": []})
-        out[plan] = {"all": avg(b["all"]), "fable": avg(b["fable"]), "estimated": not b["all"]}
+        b = bases.get(plan, {"all": [0.0, 0.0], "fable": [0.0, 0.0]})
+        out[plan] = {"all": ratio(b["all"]), "fable": ratio(b["fable"]), "estimated": not b["all"][1]}
     ref = next((pl for pl in out if out[pl]["all"]), None)
     for plan, v in out.items():
         if v["all"] is None:
@@ -620,13 +628,62 @@ def summary(data, days_back=30):
     return "\n".join(lines)
 
 
+def parse_usage(payload, cfg):
+    """The /usage endpoint's answer -> a reading {"pct", "fable_pct"} plus the week's reset moment in
+    local time, or (None, None) when there is no weekly limit in it."""
+    obs, reset = {}, None
+    for lim in payload.get("limits", []):
+        if lim.get("group") != "weekly" or lim.get("percent") is None:
+            continue
+        model = ((lim.get("scope") or {}).get("model") or {}).get("display_name")
+        if lim.get("kind") == "weekly_all":
+            obs["pct"] = lim["percent"]
+            reset = parse_ts(lim["resets_at"], cfg).strftime("%Y-%m-%d %H:%M")
+        elif model == "Fable":
+            obs["fable_pct"] = lim["percent"]
+    return (obs, reset) if "pct" in obs else (None, None)
+
+
+def fetch_usage(cfg):
+    """Fetch the /usage reading with the Claude Code login token from ~/.claude/.credentials.json — the
+    same call the /usage panel makes. The token goes to api.anthropic.com and nowhere else, and is
+    never printed. Raises RuntimeError with a reason when it cannot. The plan recorded in the token
+    (subscriptionType) is ignored: it freezes at login time."""
+    tok = (load_json(CREDENTIALS_PATH, {}).get("claudeAiOauth") or {}).get("accessToken")
+    if not tok:
+        raise RuntimeError(f"no login token in {CREDENTIALS_PATH}")
+    req = urllib.request.Request(USAGE_URL, headers={"Authorization": "Bearer " + tok,
+                                                     "anthropic-beta": "oauth-2025-04-20", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            payload = json.load(r)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"HTTP {e.code}" + (" - the token has expired; open Claude Code and it refreshes" if e.code == 401 else ""))
+    except OSError as e:
+        raise RuntimeError(f"network: {getattr(e, 'reason', e)}")
+    obs, reset = parse_usage(payload, cfg)
+    if not obs:
+        raise RuntimeError("no weekly limit in the answer")
+    return obs, reset
+
+
+def record_observation(cfg, obs, now):
+    """Add a reading; a rerun within the hour replaces the last one instead of piling up entries."""
+    obs_list = cfg.setdefault("observations", [])
+    if obs_list and now - parse_local(obs_list[-1].get("at") or obs_list[-1]["date"], cfg) < timedelta(hours=1):
+        obs_list[-1] = obs
+    else:
+        obs_list.append(obs)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--observe", type=float, metavar="PCT", help="/usage reading: percent of the week (all models)")
+    ap.add_argument("--observe", type=float, metavar="PCT", help="/usage reading by hand: percent of the week (all models); without it the reading is fetched")
     ap.add_argument("--fable", type=float, metavar="PCT", help="/usage reading: percent of the week for Fable (its own scale)")
     ap.add_argument("--at", help="when the reading was taken, 'YYYY-MM-DD HH:MM' (default: now)")
     ap.add_argument("--reset", metavar="'YYYY-MM-DD HH:MM'", help="the week's reset moment, from /usage")
     ap.add_argument("--factor", type=float, default=1.0, help="budget multiplier for the reading's week (1.5 during a +50%% promo)")
+    ap.add_argument("--no-fetch", action="store_true", help="do not fetch the /usage reading with the Claude Code login token")
     ap.add_argument("--open", action="store_true", help="open dashboard.html in a browser")
     ap.add_argument("--adopt", metavar="FILE.html", help="adopt a look: HTML from Claude Design -> template.html, then rebuild")
     ap.add_argument("--out-dir", metavar="DIR", help=f"data directory: config, history, rendered pages (default: {OUT_DIR})")
@@ -649,8 +706,19 @@ def main(argv=None):
         obs = {"at": args.at or now.strftime("%Y-%m-%d %H:%M"), "pct": args.observe, "budget_factor": args.factor}
         if args.fable is not None:
             obs["fable_pct"] = args.fable
-        cfg.setdefault("observations", []).append(obs)
+        record_observation(cfg, obs, now)
         changed = True
+    elif not args.no_fetch:
+        try:
+            obs, reset = fetch_usage(cfg)
+            obs["at"] = now.strftime("%Y-%m-%d %H:%M")        # no budget_factor: a promo comes from config "boosts"
+            record_observation(cfg, obs, now)
+            cfg["week_reset"] = reset
+            changed = True
+            fable = f"{obs['fable_pct']:.0f} %" if "fable_pct" in obs else "-"
+            print(f"/usage reading fetched: week {obs['pct']:.0f} %, Fable {fable}, resets {reset}")
+        except RuntimeError as e:
+            print(f"/usage reading not fetched ({e}) - calibrating from earlier readings")
     if changed:
         save_json(CONFIG_PATH, cfg)
 

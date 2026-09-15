@@ -20,14 +20,18 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 
 ## What to do
 
-1. **Does the message contain a `/usage` reading** (claude.ai → Settings → Usage, or `/usage` in
-   Claude Code)? Record it first — it is the only way to make the limit gauge real. You need the
-   "All models" percentage, the "Fable" percentage (a separate scale), when the week resets, and
-   whether a promo is running:
+1. **The `/usage` reading is fetched by the script itself** on every run: it calls
+   `api.anthropic.com/api/oauth/usage` with the login token from `~/.claude/.credentials.json` (the
+   same endpoint the `/usage` panel uses) and records the "all models" percentage, the Fable
+   percentage and the week's reset moment. No screenshots needed. The first line of the output says
+   whether it worked; if not (no network, an expired token — open Claude Code and it refreshes),
+   record the reading by hand:
    ```bash
    claude-usage-dashboard --observe 20 --fable 34 --reset "2026-09-17 20:00"
    ```
    The reading defaults to "now"; for a screenshot taken earlier add `--at "YYYY-MM-DD HH:MM"`.
+   A rerun within the hour replaces the last reading instead of adding one; `--no-fetch` skips the
+   token entirely.
    Promos ("+50 % weekly limits until …") go into `config.json` → `boosts` with dates; they apply
    both to calibration and to display. Budgets are calibrated **per plan**: a reading's plan is the
    one in force on its date (`plan_history`), and a plan with no reading of its own gets no
@@ -47,7 +51,7 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 |---|---|
 | `groups` | three groups by project-name pattern, first match wins: `core` = main work, `work` = work misc, `personal` = everything else |
 | `plan_history` | plan by date: `[{"from": "2026-09-08", "plan": "max5"}]`; a week's plan is the one in force at its end |
-| `observations` | `/usage` readings (`at`, `pct`, `fable_pct`); each plan's budget comes from its own readings |
+| `observations` | `/usage` readings (`at`, `pct`, `fable_pct`); collected automatically on every run; a plan's budget is the pooled ratio `Σ units ÷ Σ shares` over its readings (early-week points weigh by their size) |
 | `week_reset` | the week's reset moment from `/usage`; windows are measured from it and a partial day is split along the activity profile. Without it, weeks start Monday |
 | `boosts` | promos applied to the weekly budget: `[{"from", "to", "factor"}]` |
 | `factory_weekly_units_pro` | the factory guess used while there are no readings at all |
@@ -90,8 +94,13 @@ not publish the artifact; that is step 3, from a session.
 - Anthropic does not publish limits in tokens; everything about the limit is a model on top of
   `/usage` readings. Fable is a separate scale with its own budget and, judging by the numbers, is
   also included in "all models" (inferred from how the figures reconcile, not from documentation).
-- `/usage` inside Claude Code can show a stale plan (it reads the login token) — trust
-  claude.ai → Settings → Usage, and run `/login` after changing plans.
+- `/usage` inside Claude Code can show a stale plan (it reads the login token; the same
+  `subscriptionType` field sits in `.credentials.json`) — trust claude.ai → Settings → Usage, and run
+  `/login` after changing plans. The script does not read the plan from the token; `plan_history`
+  is kept by hand.
+- The logs only see Claude Code on this machine; the `/usage` percentage also holds chats and cloud
+  routines (the endpoint's `seven_day_breakdown` shows the split). So the weekly gauge can sit a few
+  points below `/usage`, most visibly right after a cloud routine; daily readings even it out.
 - Personal projects are visible in the report — do not drop it into a work repository.
 - Core checks: `python test_usage_report.py` in this folder.
 - `--adopt` rewrites the packaged template, so run it from a checkout, not from an ephemeral `uvx` install.

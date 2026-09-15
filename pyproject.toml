@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-usage-dashboard"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local dashboard for Claude Code usage: hours, tokens, project split, and a weekly-limit gauge calibrated from your own /usage readings"
 readme = "README.md"
 requires-python = ">=3.9"

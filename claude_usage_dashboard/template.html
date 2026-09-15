@@ -708,8 +708,8 @@ const DATA = /*__DATA__*/null;
     b.className = 'badge' + (DATA.limits.calibrated ? '' : ' warn');
     const bud = DATA.limits.budgets[DATA.limits.plan_now] || {};
     $('limit-note').textContent = DATA.limits.calibrated
-      ? `Budget ${DATA.limits.plan_now} was recovered from /usage readings (${DATA.limits.observations.map((o) => `${o.at || o.date}: ${o.pct} %${o.fable_pct != null ? ` / Fable ${o.fable_pct} %` : ''}`).join('; ')}): ${ru(bud.all || 0, 0)} units a week, Fable ${bud.fable ? ru(bud.fable, 0) + ' units' : '—'}; week windows start ${DATA.limits.week_reset || 'Monday'}. Weeks on other plans have no percentage without a reading of their own.`
-      : `There are no /usage readings for ${DATA.limits.plan_now} yet, so no percentage. Feed it one: python usage_report.py --observe <all models %> --fable <Fable %> --reset "<reset date>".`;
+      ? (() => { const last = DATA.limits.observations[nObs - 1]; return `Budget ${DATA.limits.plan_now} was recovered from ${nObs} /usage readings (latest ${last.at || last.date}: ${last.pct} %${last.fable_pct != null ? ` / Fable ${last.fable_pct} %` : ''}): ${ru(bud.all || 0, 0)} units a week, Fable ${bud.fable ? ru(bud.fable, 0) + ' units' : '—'}; week windows start ${DATA.limits.week_reset || 'Monday'}. Weeks on other plans have no percentage without a reading of their own.`; })()
+      : `There are no /usage readings for ${DATA.limits.plan_now} yet, so no percentage. A reading is fetched with your Claude Code login token on every run; if that failed, feed one by hand: python usage_report.py --observe <all models %> --fable <Fable %> --reset "<reset date>".`;
   }
 
   // ---------- cumulative hours ----------

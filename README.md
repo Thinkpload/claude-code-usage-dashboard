@@ -55,9 +55,16 @@ Python 3.9+, standard library only. Windows, macOS and Linux.
 ## Make the weekly limit real
 
 Anthropic does not publish limits in tokens, so any tool claiming to know your exact remaining quota
-is guessing. This one asks you instead.
+is guessing. This one calibrates itself against the real `/usage` figure instead.
 
-Open **claude.ai → Settings → Usage** (or run `/usage` in Claude Code) and feed it what you see:
+On every run it fetches that figure the same way Claude Code's own `/usage` panel does: with your
+login token from `~/.claude/.credentials.json`, sent to `api.anthropic.com` and nowhere else. The
+token is never printed or copied anywhere new. What gets recorded is the "all models" percentage,
+the Fable percentage and the moment the week resets. A rerun within the hour replaces the last
+reading rather than adding another.
+
+If you would rather it never touched the token, run with `--no-fetch` and feed the reading yourself
+from **claude.ai → Settings → Usage** (or `/usage` in Claude Code):
 
 ```bash
 claude-usage-dashboard --observe 46 --fable 31 --reset "2026-09-17 20:00"
@@ -67,10 +74,10 @@ claude-usage-dashboard --observe 46 --fable 31 --reset "2026-09-17 20:00"
 - `--fable` — the Fable percentage, which runs on its own separate budget
 - `--reset` — when the week rolls over
 
-From that one reading the tool solves for your plan's weekly budget in *load units* (tokens weighted
-by model and token type) and can then track every later week on its own. Give it a reading now and
-then; each one sharpens the estimate. Until you do, the gauge says so plainly instead of inventing a
-number.
+From each reading the tool solves for your plan's weekly budget in *load units* (tokens weighted by
+model and token type) and can then track every later week on its own. Readings pool by size, so a
+1 % reading on the first day of a week does not drown the 48 % one from day five. Until there is a
+reading, the gauge says so plainly instead of inventing a number.
 
 Plan changes are handled per plan: a Max reading never gets rescaled into a Pro budget, because
 "Pro = Max ÷ 5" was tested against real weeks and does not hold.
@@ -95,7 +102,7 @@ Copy `config.example.json` to `~/.claude/usage-report/config.json` and edit. The
 |---|---|
 | `groups` | three project groups by name pattern, first match wins — this is what the colours mean |
 | `plan_history` | which plan you were on when: `[{"from": "2026-09-08", "plan": "max5"}]` |
-| `observations` | your `/usage` readings; written by `--observe`, safe to edit by hand |
+| `observations` | your `/usage` readings; fetched on every run (or written by `--observe`), safe to edit by hand |
 | `week_reset` | the moment your week rolls over, from `/usage` |
 | `boosts` | temporary promos: `[{"from": …, "to": …, "factor": 1.5}]` |
 | `git_roots`, `git_authors` | where your repos live and which author patterns count as you |
@@ -147,6 +154,11 @@ Use both. They answer different questions.
 
 - Everything about the weekly limit is a model built on top of your `/usage` readings, not published
   data. The page marks uncalibrated figures as estimates rather than dressing them up.
+- The logs only see Claude Code on this machine, while `/usage` also counts chats and cloud
+  routines (the endpoint's own breakdown shows the split). So the gauge can sit a few points below
+  `/usage`, most visibly right after a cloud routine has run; daily readings even it out.
+- Fetching the reading is undocumented API: it is the call the `/usage` panel makes, and it may
+  change. When it stops working the run says so and falls back to the readings it already has.
 - Skill cost counts only the re-reading of a skill's text out of cache; `/usage` counts more broadly.
 - Your project names are in the report. Think before you put the rendered page somewhere public.
 
