@@ -160,6 +160,25 @@ def test_calibration_pools_observations_by_size():
     assert 1000 < b < 1200
 
 
+def test_boost_change_applies_mid_week():
+    """A limit change lands at once, not at the next reset: each reading sees the factor of its own moment,
+    and the window is drawn with the factor in effect at its end (now, for the current week)."""
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "max5"}]
+    cfg["week_reset"] = "2026-09-17 20:00"
+    cfg["boosts"] = [{"from": "2026-09-01", "to": "2026-09-13", "factor": 1.5},      # 1000 -> 1500 ...
+                     {"from": "2026-09-14", "to": "2099-12-31", "factor": 1.25}]     # ... then 1250 from the 14th
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units a day
+    hours = [0] * 24; hours[10] = 3600
+    day = lambda: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": {"claude-opus-5": opus}}}
+    hist = {"days": {f"2026-09-{d}": day() for d in ("11", "12", "13", "14")}}
+    # 50 units against 1500 on the 12th, 100 units against 1250 on the 14th: both point at a base of 1000
+    cfg["observations"] = [{"at": "2026-09-12 12:00", "pct": 100 * 50 / 1500}, {"at": "2026-09-14 12:00", "pct": 8}]
+    assert abs(ur.calibrate(hist, cfg)["max5"]["all"] - 1000) < 1e-6
+    weeks, _ = ur.build_weeks(hist, cfg, ur.parse_local("2026-09-14 12:00", cfg))
+    assert weeks[-1]["boost"] == 1.25 and abs(weeks[-1]["pct"] - 8) < 1e-6, weeks[-1]   # what /usage shows now
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

@@ -357,7 +357,7 @@ FABLE = lambda m: m.startswith("claude-fable")
 
 
 def boost_factor(t, cfg):
-    """Budget multiplier for the week starting (or observed) at t."""
+    """Budget multiplier in effect at moment t."""
     d = t.strftime("%Y-%m-%d")
     for bst in cfg.get("boosts", []):
         if bst["from"] <= d <= bst["to"]:
@@ -414,7 +414,7 @@ def build_weeks(history, cfg, now):
         upto = min(we, now)
         plan = plan_on(upto.strftime("%Y-%m-%d"), cfg)  # plan at the end of the window: a plan change applies going forward
         b = budgets[plan]
-        f = boost_factor(ws, cfg)
+        f = boost_factor(upto, cfg)  # the factor in effect at the window's end: a limit change applies mid-week, like the plan
         used, used_f = units_between(history, ws, upto, cfg), units_between(history, ws, upto, cfg, FABLE)
         known = not b["estimated"]  # without a reading of its own we draw no percentage: scaling by ratio does not hold up
         budget = b["all"] * f if known else None
