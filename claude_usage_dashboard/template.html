@@ -148,9 +148,13 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 @media (max-width:520px){.stat{padding:14px 0 0;border-left:0;border-top:1px solid var(--hair)}
                          .stat:first-child{padding-top:0;border-top:0}}
 .stat b{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.025em;color:var(--ink);
-        font-variant-numeric:tabular-nums;line-height:1}
+        font-variant-numeric:tabular-nums;line-height:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
 .stat span{font-size:12px;color:var(--muted)}
 .stat-hero b{font-size:40px;letter-spacing:-.04em}
+/* week-over-week trend: brass when the figure grew, ice when it shrank */
+.trend{font-size:12px;font-style:normal;letter-spacing:0;white-space:nowrap;color:var(--muted);cursor:default}
+.trend.up{color:var(--warn)}
+.trend.down{color:var(--cold)}
 
 /* cards and grids */
 .card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);padding:20px 22px;
@@ -600,18 +604,33 @@ const DATA = /*__DATA__*/null;
   }
 
   // ---------- readout row ----------
-  function stats(A) {
+  function figures(A) {
     const work = DATA.work_groups.reduce((s, g) => s + (A.byGroup[groupIndex[g]] || 0), 0);
     const share = A.sec ? 100 * work / A.sec : 0;
     const think = A.tok.output ? 100 * A.tok.thinking / A.tok.output : 0;
-    const items = [
-      { v: fmtH(A.sec), k: `active time · ${A.days.length} d · ${ru(A.sec / 3600 / Math.max(1, A.days.length), 1)} h/day`, hero: true },
-      { v: ru(share, 0) + ' %', k: 'hours on work' },
-      { v: ru(A.calls), k: `API calls against ${ru(A.msgs)} of your messages` },
-      { v: fmtTok(A.tok.output), k: `tokens out · ${ru(think, 0)} % thinking` },
-      { v: ru(A.sessions.size), k: 'sessions in the period' },
+    return [
+      { v: fmtH(A.sec), n: A.sec, k: `active time · ${A.days.length} d · ${ru(A.sec / 3600 / Math.max(1, A.days.length), 1)} h/day`, hero: true },
+      { v: ru(share, 0) + ' %', n: share, pp: true, k: 'hours on work' },
+      { v: ru(A.calls), n: A.calls, k: `API calls against ${ru(A.msgs)} of your messages` },
+      { v: fmtTok(A.tok.output), n: A.tok.output, k: `tokens out · ${ru(think, 0)} % thinking` },
+      { v: ru(A.sessions.size), n: A.sessions.size, k: 'sessions in the period' },
     ];
-    $('stats').innerHTML = items.map((t) => `<div class="stat${t.hero ? ' stat-hero' : ''}"><b>${t.v}</b><span>${t.k}</span></div>`).join('');
+  }
+  function stats(A) {
+    // the 30-day view carries a trend: the last 7 days against the 7 before them (a share moves in points)
+    const WK = [[-6, 0], [-13, -7]];
+    const W = current.id === '30d' ? WK.map(([a, b]) => aggregate({ from: addDays(DATA.today, a), to: addDays(DATA.today, b) })) : null;
+    const [now, was] = W && W[1].days.length ? W.map(figures) : [];
+    const trend = (i) => {
+      const t = now[i], w = was[i];
+      if (!t.pp && !w.n) return '';
+      const d = t.pp ? t.n - w.n : 100 * (t.n - w.n) / w.n;
+      const s = ru(Math.abs(d), 0), dir = s === '0' ? 'flat' : d > 0 ? 'up' : 'down';
+      return `<i class="trend ${dir}" data-i="${i}">${{ up: '↑', down: '↓', flat: '→' }[dir]} ${s}${t.pp ? ' pp' : ' %'}</i>`;
+    };
+    $('stats').innerHTML = figures(A).map((t, i) => `<div class="stat${t.hero ? ' stat-hero' : ''}"><b>${t.v}${was ? trend(i) : ''}</b><span>${t.k}</span></div>`).join('');
+    const span = ([a, b]) => `${fmtDate(addDays(DATA.today, a))}–${fmtDate(addDays(DATA.today, b))}`;
+    if (was) $('stats').querySelectorAll('.trend').forEach((n) => bindTip(n, `<b>week over week</b><br>${span(WK[0])}: ${now[n.dataset.i].v}<br>${span(WK[1])}: ${was[n.dataset.i].v}`));
   }
 
   // ============================================================

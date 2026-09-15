@@ -90,6 +90,7 @@ Plan changes are handled per plan: a Max reading never gets rescaled into a Pro 
 | **One call** | one `requestId` — a single API call spans several log lines, and they are deduplicated |
 | **Active time** | the sum of gaps between adjacent records no longer than `idle_minutes` (10 by default), so leaving the window open overnight costs nothing |
 | **History** | daily snapshots accumulate in `history.json`, so the days Claude Code prunes after 30 days stay with you |
+| **Trend** | on the 30-day view each headline figure carries a week-over-week arrow: the last 7 days against the 7 before them; the work share moves in percentage points, the rest in per cent |
 | **Load units** | tokens × per-model weights (the API price list, used purely as weights) — the currency the limit gauge speaks |
 
 Run it at least monthly, or on a scheduler, or the pruning will outrun your history.
