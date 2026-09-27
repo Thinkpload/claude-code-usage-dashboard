@@ -126,6 +126,7 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--accent)}
 .track i.alt{background:var(--accent-2)}
 .track i.full{background:var(--bad)}
+.track i.credit{background:var(--ok)}
 .track .due{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);
             box-shadow:0 0 0 1.5px var(--surface)}
 .w-keys{display:flex;flex-wrap:wrap;align-items:center;gap:5px 22px;margin:20px 0 0;font-size:13px;color:var(--muted)}
@@ -582,6 +583,18 @@ const DATA = /*__DATA__*/null;
          </div>
        </div>`;
 
+    // the cloud session credit: a dollar pot of its own that burns out on a date, so no "due now" mark
+    const cc = DATA.limits.cloud_credit, ccEnd = cc && cc.expires ? parseAt(cc.expires) : null;
+    const ccOn = cc && (!ccEnd || ccEnd > now), ccLeft = ccOn ? Math.max(0, cc.limit - cc.used) : 0;
+    const ccRail = !ccOn ? '' :
+      `<div class="rail" id="rail-credit">
+         <div class="rail-head">
+           <span class="cap">Cloud credit, <b>$${ru(cc.used, 2)}</b> of <b>$${ru(cc.limit, 0)}</b> spent${ccEnd ? `, burns out ${fmtDate(cc.expires.slice(0, 10))}` : ''}</span>
+           <span class="pct">$${ru(ccLeft, 0)} left</span>
+         </div>
+         <div class="track thin"><i class="credit" style="width:${Math.min(100, 100 * cc.used / cc.limit)}%"></i></div>
+       </div>`;
+
     const boost = cur.boost > 1 ? ` This week's budget is raised by a promo of ${ru((cur.boost - 1) * 100, 0)} %.` : '';
     host.innerHTML =
       `<figure class="dial" id="dial"></figure>
@@ -591,6 +604,7 @@ const DATA = /*__DATA__*/null;
          <div class="w-rails">
            ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false)}
            ${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}
+           ${ccRail}
          </div>
          <p class="w-keys"><span><i class="k-due"></i>where you should be now</span>
             <span><i class="k-sol"></i>all models</span><span><i class="k-dsh"></i>Fable</span></p>
@@ -600,6 +614,7 @@ const DATA = /*__DATA__*/null;
     if (k != null) { paceDial($('dial'), { k, kF }); } else { $('dial').innerHTML = ''; }
     if (k != null) bindTip($('dial'), `<b>Pace gauge</b> - actual ÷ plan<br><span class="k">plan for this hour</span> ${ru(plan * 100, 0)} %${prof ? '' : ' (linear: too little history for a profile)'}<br><span class="k">all models</span> ${ru(cur.pct, 0)} % → ×${ru(k, 2)}${kF != null ? `<br><span class="k">Fable</span> ${ru(cur.fable_pct, 0)} % → ×${ru(kF, 2)}` : ''}`);
     if (known) bindTip($('rail-all'), `<b>All models</b><br>${ru(cur.units, 0)} of ${ru(cur.budget, 0)} units - ${ru(cur.pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %<br><span class="k">time elapsed</span> ${ru(100 * (now - start) / span, 0)} %`);
+    if (ccOn) bindTip($('rail-credit'), `<b>Cloud session credit</b><br>$${ru(cc.used, 2)} of $${ru(cc.limit, 0)} spent · $${ru(ccLeft, 2)} left${ccEnd ? `<br><span class="k">burns out</span> ${fmtDate(cc.expires.slice(0, 10))}, ${hhmm(ccEnd)} · in ${dur(ccEnd - now)}<br><span class="k">to use it up</span> ~$${ru(ccLeft / Math.max(1, (ccEnd - now) / 864e5), 0)} a day` : ''}<br><span class="k">as of</span> ${cc.at}<br>Pays for cloud sessions first: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines (/schedule). Once it is spent or burns out, cloud sessions draw on the plan limit again.`);
     if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
   }
 
@@ -843,9 +858,10 @@ const DATA = /*__DATA__*/null;
       for (const [k, n] of Object.entries(x.skills || {})) I.skills[k] = (I.skills[k] || 0) + n;
     }
     const modelUnits = {}; let modelTotal = 0;
+    const W = DATA.token_weights, wKeys = Object.keys(W).filter((k) => k !== 'default').sort((a, b) => b.length - a.length);
     for (const day of A.days) for (const v of Object.values(day.p)) for (const [m, t] of Object.entries(v.models)) {
-      const w = m.startsWith('claude-fable') ? [10, 12.5, 0.25, 50] : m.startsWith('claude-sonnet-5') ? [2, 2.5, 0.2, 10] : m.startsWith('claude-sonnet') ? [3, 3.75, 0.3, 15] : m.startsWith('claude-haiku') ? [1, 1.25, 0.1, 5] : [5, 6.25, 0.5, 25];
-      const u = (t.input * w[0] + t.cache_create * w[1] + t.cache_read * w[2] + t.output * w[3]) / 1e6;
+      const w = W[wKeys.find((k) => m.startsWith(k)) || 'default'];   // the config's weights, longest prefix first, as in the script
+      const u = (t.input * w.input + t.cache_create * w.cache_create + t.cache_read * w.cache_read + t.output * w.output) / 1e6;
       modelUnits[m] = (modelUnits[m] || 0) + u; modelTotal += u;
     }
     const pct = (x, of) => of ? 100 * x / of : 0;
@@ -861,7 +877,7 @@ const DATA = /*__DATA__*/null;
       mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['over 150k', I.ctx.gt150, I.units]], 'var(--r2)') +
       mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)') +
       mini('Spend by model', Object.entries(modelUnits).filter(([, u]) => u > 0).sort((a, b) => b[1] - a[1]).map(([m, u]) => [modelLabel(m), u, modelTotal]), 'var(--s1)') +
-      (skillTop.length ? mini('Skill text in context', skillTop.map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');
+      (pct(skillAll, I.units) >= 0.5 ? mini('Skill text in context', skillTop.map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');
     const tips = [];
     const gt = pct(I.ctx.gt150, I.units), gt100 = pct(I.ctx['100_150'] + I.ctx.gt150, I.units);
     if (gt >= 50) tips.push(['warn', `${ru(gt, 0)} % of the spend goes to calls with a context over 150k`, 'A long context is expensive even from cache: every call re-reads all of it. <b>/compact</b> in the middle of a long task, <b>/clear</b> when the subject changes; send big dumps and logs to a file, not into the chat.']);
@@ -871,7 +887,7 @@ const DATA = /*__DATA__*/null;
     if (xh >= 80) tips.push(['warn', `${ru(xh, 0)} % of calls run at xhigh effort, thinking is ${ru(think, 0)} % of output`, 'xhigh is the default and it is what hard problems need. For mechanical work (edits from a list, builds, renames, routine reports) drop the effort to <b>high</b> or <b>medium</b> - output costs a fraction and quality on that kind of work does not drop.']);
     const fableU = Object.entries(modelUnits).filter(([m]) => m.startsWith('claude-fable')).reduce((a, [, u]) => a + u, 0);
     const fableCalls = Object.entries(A.byModel).filter(([m]) => m.startsWith('claude-fable')).reduce((a, [, v]) => a + v.calls, 0);
-    if (pct(fableU, modelTotal) >= 15) tips.push(['warn', `Fable 5.1: ${P(fableCalls, A.calls)} of the calls but ${P(fableU, modelTotal)} of the spend`, 'Fable costs twice what Opus does per token and runs on its own weekly scale. Keep it for problems Opus has already stumbled on; everything else goes to <b>Opus 5</b>, and routine work to <b>Sonnet 5</b>.']);
+    if (pct(fableU, modelTotal) >= 15) tips.push(['warn', `Fable 5.1: ${P(fableCalls, A.calls)} of the calls but ${P(fableU, modelTotal)} of the spend`, 'Fable costs two to two and a half times what Opus does per token and runs on its own weekly scale. Keep it for problems Opus has already stumbled on; everything else goes to <b>Opus 5.5</b>, and routine work to <b>Sonnet 5</b>.']);
     if (pct(skillAll, I.units) >= 5) tips.push(['warn', `Skills in context: ${P(skillAll, I.units)} of the spend (${skillTop.slice(0, 3).map(([k]) => k).join(', ')})`, 'A loaded skill sits in the context until the session ends and is re-read by every call. Reach for heavy skills only when you truly need them; once a skill has done its job, <b>/compact</b> or a fresh session.']);
     if (pct(I.side, I.units) >= 10) tips.push(['info', `Subagents: ${P(I.side, I.units)} of the spend`, 'Every subagent starts from zero and reads the context again. They earn their keep on wide searches; for linear work the main session is cheaper.']);
     if (I.sessions && pct(I.short, I.sessions) >= 25) tips.push(['warn', `${ru(I.short)} of ${ru(I.sessions)} sessions were shorter than three calls`, `Every start writes the system prompt, CLAUDE.md and memory into cache (${ru(I.sessions ? I.first / I.sessions : 0, 1)} units on average). Put small questions into the session you have open, or <b>claude -c</b>rather than a new window.`]);
@@ -884,6 +900,13 @@ const DATA = /*__DATA__*/null;
       tips.push([avg > 85 ? 'warn' : 'ok',
         avg > 85 ? `The weekly limit is on the edge: on average ${ru(avg, 0)} %` : `Leaving ${ru(100 - avg, 0)} % ≈ ${ru(spareH, 0)} h of work a week`,
         avg > 85 ? 'The advice above buys headroom faster than a bigger plan does.' : `Paid for and left unburnt: ${ru(spareU, 0)} units a week at a pace of ${ru(uph, 1)} units/h. There is nothing to save here: reach for Fable and subagents on the hard problems. At this pace optimisation is about speed and quality, not quota.`]);
+    }
+    const cc = DATA.limits.cloud_credit, ccEnd = cc && cc.expires ? parseAt(cc.expires) : null, ccNow = parseAt(DATA.generated);
+    if (cc && cc.limit - cc.used >= 1 && (!ccEnd || ccEnd > ccNow)) {
+      const ccLeft = cc.limit - cc.used, ccDays = ccEnd ? Math.max(1, Math.round((ccEnd - ccNow) / 864e5)) : null;
+      tips.push([avg != null && avg > 85 ? 'warn' : 'info',
+        `Cloud credit: $${ru(ccLeft, 0)} left${ccDays ? `, burns out in ${ccDays} d` : ''}`,
+        `Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`]);
     }
     const right = document.createElement('ol');
     right.innerHTML = tips.map(([kind, head, how]) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span></div></li>`).join('');

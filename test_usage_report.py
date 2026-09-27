@@ -136,6 +136,12 @@ def test_parse_usage_from_endpoint_payload():
     obs, reset = ur.parse_usage(payload, cfg)
     assert obs == {"pct": 48, "fable_pct": 49} and reset == "2026-09-17 20:00", (obs, reset)   # UTC -> +3
     assert ur.parse_usage({"limits": []}, cfg) == (None, None)
+    # the cloud session credit sits under a codename; it is the entry that carries a dollar limit
+    credit = {"five_hour": {"utilization": 20.0, "limit_dollars": None, "used_dollars": None},
+              "iguana_necktie": {"utilization": 0.55, "resets_at": "2026-11-05T07:59:00+00:00",
+                                 "limit_dollars": 250, "used_dollars": 1.378266, "remaining_dollars": 248.621734}}
+    assert ur.parse_credit(credit, cfg) == {"limit": 250, "used": 1.38, "expires": "2026-11-05 10:59"}
+    assert ur.parse_credit(payload, cfg) is None
     # a rerun within the hour replaces the last reading; later on it appends
     cfg["observations"] = [{"at": "2026-09-14 16:00", "pct": 48}]
     ur.record_observation(cfg, {"at": "2026-09-14 16:40", "pct": 49}, ur.parse_local("2026-09-14 16:40", cfg))
@@ -177,6 +183,25 @@ def test_boost_change_applies_mid_week():
     assert abs(ur.calibrate(hist, cfg)["max5"]["all"] - 1000) < 1e-6
     weeks, _ = ur.build_weeks(hist, cfg, ur.parse_local("2026-09-14 12:00", cfg))
     assert weeks[-1]["boost"] == 1.25 and abs(weeks[-1]["pct"] - 8) < 1e-6, weeks[-1]   # what /usage shows now
+
+
+def test_week_with_its_own_reading_follows_it():
+    """A limit change nobody put into boosts (a promo, a new model) must not drag a week away from its own
+    /usage reading: such a week takes its budget from its latest reading, the pooled budget covers the rest."""
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "max5"}]
+    cfg["week_reset"] = "2026-09-17 20:00"
+    cfg["boosts"] = []
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units a day
+    hours = [0] * 24; hours[10] = 3600
+    day = lambda: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": {"claude-opus-5": opus}}}
+    hist = {"days": {f"2026-09-{d}": day() for d in ("11", "12", "13", "18", "19", "20")}}
+    # last week 75 units = 7.5 % of 1000; this week the limit doubled unannounced: 50 units = 2.5 % of 2000
+    cfg["observations"] = [{"at": "2026-09-13 12:00", "pct": 7.5}, {"at": "2026-09-19 12:00", "pct": 2.5}]
+    weeks, _ = ur.build_weeks(hist, cfg, ur.parse_local("2026-09-20 12:00", cfg))
+    last, cur = weeks[-2], weeks[-1]
+    assert abs(last["budget"] - 1000) < 1e-6 and abs(cur["budget"] - 2000) < 1e-6, (last, cur)
+    assert cur["pct"] == round(75 / 2000 * 100, 1), cur                                       # 2.5 % at the reading + one more day
 
 
 if __name__ == "__main__":

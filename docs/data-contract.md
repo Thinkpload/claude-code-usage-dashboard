@@ -58,7 +58,8 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
     "plan_now": "Max 5x",
     "budgets": {"Max 5x": {"all": 351.6, "fable": 164.6, "estimated": false}, "Pro": {…, "estimated": true}},
     "observations": [{"at": "2026-09-12 05:50", "pct": 20, "fable_pct": 34}],
-    "week_reset": "2026-09-17 20:00"     // or null (weeks start Monday)
+    "week_reset": "2026-09-17 20:00",    // or null (weeks start Monday)
+    "cloud_credit": {"limit": 250, "used": 1.38, "expires": "2026-11-05 10:59", "at": "2026-09-28 01:20"}  // or null
   },
   "idle_minutes": 10,
   "config_path": "~/.claude/usage-report/config.json"

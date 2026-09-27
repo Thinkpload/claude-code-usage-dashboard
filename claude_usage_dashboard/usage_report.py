@@ -66,12 +66,13 @@ DEFAULT_CONFIG = {
         {"id": "personal", "label": "Personal", "match": ["*"]},
     ],
     "work_groups": ["core", "work"],
-    "model_labels": {"claude-opus-5": "Opus 5", "claude-fable-5-1": "Fable 5.1", "claude-sonnet-5": "Sonnet 5",
+    "model_labels": {"claude-opus-5-5": "Opus 5.5", "claude-opus-5": "Opus 5", "claude-fable-5-1": "Fable 5.1", "claude-sonnet-5": "Sonnet 5",
                      "claude-haiku-4-5-20251001": "Haiku 4.5", "claude-opus-4-8": "Opus 4.8", "claude-opus-4-7": "Opus 4.7",
                      "claude-sonnet-4-6": "Sonnet 4.6"},
     # Token weights for the limit's "load units": API prices per 1M tokens, used as weights only.
     "token_weights": {
         "claude-fable": {"input": 10, "cache_create": 12.5, "cache_read": 0.25, "output": 50},
+        "claude-opus-5-5": {"input": 4, "cache_create": 5, "cache_read": 0.2, "output": 20},
         "claude-opus": {"input": 5, "cache_create": 6.25, "cache_read": 0.5, "output": 25},
         "claude-sonnet-5": {"input": 2, "cache_create": 2.5, "cache_read": 0.2, "output": 10},
         "claude-sonnet": {"input": 3, "cache_create": 3.75, "cache_read": 0.3, "output": 15},
@@ -419,6 +420,17 @@ def build_weeks(history, cfg, now):
         known = not b["estimated"]  # without a reading of its own we draw no percentage: scaling by ratio does not hold up
         budget = b["all"] * f if known else None
         fbudget = b["fable"] * f if known and b["fable"] else None
+        # a week with a /usage reading of its own follows its latest one: the pooled budget misses limit changes
+        # nobody put into boosts (a promo, a new model), and the week would drift away from what /usage shows
+        for o in sorted(cfg.get("observations", []), key=lambda o: parse_local(o.get("at") or o["date"], cfg)):
+            t = parse_local(o.get("at") or o["date"], cfg)
+            if not ws <= t < we or plan_on(t.strftime("%Y-%m-%d"), cfg) != plan:
+                continue
+            u, uf = units_between(history, ws, t, cfg), units_between(history, ws, t, cfg, FABLE)
+            if o.get("pct", 0) > 0 and u > 0:
+                budget = u / (o["pct"] / 100.0)
+            if o.get("fable_pct", 0) > 0 and uf > 0:
+                fbudget = uf / (o["fable_pct"] / 100.0)
         weeks.append({"start": ws.strftime("%Y-%m-%d"), "end": (we - timedelta(minutes=1)).strftime("%Y-%m-%d"),
                       "start_at": ws.strftime("%Y-%m-%d %H:%M"), "plan": plan, "plan_label": cfg["plans"][plan]["label"],
                       "units": round(used, 2), "budget": round(budget, 2) if budget else None,
@@ -496,6 +508,7 @@ def build_data(history, cfg, now):
         "work_groups": cfg["work_groups"],
         "projects": {n: group_of(n, cfg) for n in names},
         "model_labels": cfg["model_labels"],
+        "token_weights": cfg["token_weights"],
         "days": days,
         "months": months,
         "weeks": weeks,
@@ -503,7 +516,8 @@ def build_data(history, cfg, now):
         "git": {"repos": repo_count, "authors": cfg.get("git_authors", [])},
         "limits": {"calibrated": not budgets[plan_now]["estimated"], "plan_now": cfg["plans"][plan_now]["label"],
                    "budgets": {cfg["plans"][pl]["label"]: {k: (round(v, 1) if isinstance(v, float) else v) for k, v in b.items()} for pl, b in budgets.items()},
-                   "observations": cfg.get("observations", []), "week_reset": cfg.get("week_reset")},
+                   "observations": cfg.get("observations", []), "week_reset": cfg.get("week_reset"),
+                   "cloud_credit": cfg.get("cloud_credit")},
         "idle_minutes": cfg["idle_minutes"],
         "config_path": CONFIG_PATH,
     }
@@ -644,6 +658,16 @@ def parse_usage(payload, cfg):
     return (obs, reset) if "pct" in obs else (None, None)
 
 
+def parse_credit(payload, cfg):
+    """The cloud session credit from the /usage answer -> {"limit", "used", "expires"} or None. It sits under
+    a codename that may change, so it is found as the entry that carries a dollar limit."""
+    for v in payload.values():
+        if isinstance(v, dict) and v.get("limit_dollars") and v.get("used_dollars") is not None:
+            return {"limit": v["limit_dollars"], "used": round(v["used_dollars"], 2),
+                    "expires": parse_ts(v["resets_at"], cfg).strftime("%Y-%m-%d %H:%M") if v.get("resets_at") else None}
+    return None
+
+
 def fetch_usage(cfg):
     """Fetch the /usage reading with the Claude Code login token from ~/.claude/.credentials.json — the
     same call the /usage panel makes. The token goes to api.anthropic.com and nowhere else, and is
@@ -664,7 +688,7 @@ def fetch_usage(cfg):
     obs, reset = parse_usage(payload, cfg)
     if not obs:
         raise RuntimeError("no weekly limit in the answer")
-    return obs, reset
+    return obs, reset, parse_credit(payload, cfg)
 
 
 def record_observation(cfg, obs, now):
@@ -710,10 +734,12 @@ def main(argv=None):
         changed = True
     elif not args.no_fetch:
         try:
-            obs, reset = fetch_usage(cfg)
+            obs, reset, credit = fetch_usage(cfg)
             obs["at"] = now.strftime("%Y-%m-%d %H:%M")        # no budget_factor: a promo comes from config "boosts"
             record_observation(cfg, obs, now)
             cfg["week_reset"] = reset
+            if credit:
+                cfg["cloud_credit"] = dict(credit, at=obs["at"])
             changed = True
             fable = f"{obs['fable_pct']:.0f} %" if "fable_pct" in obs else "-"
             print(f"/usage reading fetched: week {obs['pct']:.0f} %, Fable {fable}, resets {reset}")

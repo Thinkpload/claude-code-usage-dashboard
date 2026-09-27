@@ -76,7 +76,9 @@ claude-usage-dashboard --observe 46 --fable 31 --reset "2026-09-17 20:00"
 
 From each reading the tool solves for your plan's weekly budget in *load units* (tokens weighted by
 model and token type) and can then track every later week on its own. Readings pool by size, so a
-1 % reading on the first day of a week does not drown the 48 % one from day five. Until there is a
+1 % reading on the first day of a week does not drown the 48 % one from day five. A week that has a
+reading of its own follows its latest one, so a limit change nobody announced (a promo, a new model)
+cannot pull the gauge away from what `/usage` shows. Until there is a
 reading, the gauge says so plainly instead of inventing a number.
 
 Plan changes are handled per plan: a Max reading never gets rescaled into a Pro budget, because
