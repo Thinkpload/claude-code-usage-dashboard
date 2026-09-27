@@ -877,7 +877,7 @@ const DATA = /*__DATA__*/null;
       mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['over 150k', I.ctx.gt150, I.units]], 'var(--r2)') +
       mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)') +
       mini('Spend by model', Object.entries(modelUnits).filter(([, u]) => u > 0).sort((a, b) => b[1] - a[1]).map(([m, u]) => [modelLabel(m), u, modelTotal]), 'var(--s1)') +
-      (pct(skillAll, I.units) >= 0.5 ? mini('Skill text in context', skillTop.map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');
+      (skillTop.some(([, u]) => pct(u, I.units) >= 0.5) ? mini('Skill text in context', skillTop.filter(([, u]) => pct(u, I.units) >= 0.5).map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');   // rows that round to 0 % are noise
     const tips = [];
     const gt = pct(I.ctx.gt150, I.units), gt100 = pct(I.ctx['100_150'] + I.ctx.gt150, I.units);
     if (gt >= 50) tips.push(['warn', `${ru(gt, 0)} % of the spend goes to calls with a context over 150k`, 'A long context is expensive even from cache: every call re-reads all of it. <b>/compact</b> in the middle of a long task, <b>/clear</b> when the subject changes; send big dumps and logs to a file, not into the chat.']);
