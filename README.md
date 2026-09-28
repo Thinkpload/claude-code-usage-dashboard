@@ -50,6 +50,11 @@ Either way it scans your logs, writes `~/.claude/usage-report/`, and opens the p
 hundred sessions takes up to a minute; everything after that is instant. Run it again whenever you
 want fresh numbers — the page is a plain file, there is no server and no daemon.
 
+On Windows, run it once with `--register-refresh` and the page gets a **refresh** button: it opens a
+`claude-usage://` link that reruns the scan in the background, and the page reloads when the new
+build lands (the browser asks the first time). Register from a `pip install` or a checkout — a
+`uvx`/`pipx run` copy lives in a temporary environment the link would outlive.
+
 Python 3.9+, standard library only. Windows, macOS and Linux.
 
 ## Make the weekly limit real

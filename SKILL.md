@@ -82,7 +82,13 @@ template, `<div class="bg">` is reserved for an animated background, and the mar
 ## Running it unattended
 
 Any scheduler works — cron, systemd timers, Windows Task Scheduler. Point it at
-`claude-usage-dashboard` daily so the history and the local dashboard stay fresh. The scheduler does
+`claude-usage-dashboard` twice a day (say, 08:50 and 20:50, catching up on a missed run) so the history
+and the local dashboard stay fresh and the weekly gauge gets two `/usage` readings a day.
+
+In between, the dashboard's **refresh** button rebuilds it on demand. It needs a one-time
+`claude-usage-dashboard --register-refresh` (Windows, current user, no admin): that registers the
+`claude-usage://` scheme to run this script windowless on the same data folder. Rerun it after moving
+the checkout or Python. The button is only on the local `dashboard.html`, never in the artifact. The scheduler does
 not publish the artifact; that is step 3, from a session.
 
 ## Pitfalls

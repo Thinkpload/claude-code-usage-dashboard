@@ -204,6 +204,24 @@ def test_week_with_its_own_reading_follows_it():
     assert cur["pct"] == round(75 / 2000 * 100, 1), cur                                       # 2.5 % at the reading + one more day
 
 
+def test_refresh_button_only_on_local_page():
+    """The refresh link reaches this machine, so only dashboard.html carries it; the published artifact
+    must not, and the command it runs points at this script and this data folder."""
+    data = {"refresh_url": ur.REFRESH_URL, "today": "2026-09-20", "days": [], "commits": {}, "projects": {}, "weeks": []}
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            paths = ur.render(data)[0]
+            local, shared = (open(p, encoding="utf8").read() for p in paths)
+            cmd = ur.refresh_command()
+        finally:
+            ur.set_out_dir(old)
+    assert '"refresh_url": "claude-usage://refresh"' in local
+    assert '"refresh_url": null' in shared and "claude-usage://refresh\"" not in shared
+    assert os.path.abspath(ur.__file__) in cmd and f'--out-dir "{tmp}"' in cmd, cmd
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
