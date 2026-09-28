@@ -318,5 +318,10 @@
  "   // the config's weights, longest prefix first, as in the script": "   // веса из конфига, самый длинный префикс первым, как в скрипте",
  "`Cloud credit: $${ru(ccLeft, 0)} left${ccDays ? `, burns out in ${ccDays} d` : ''}`": "`Облачный кредит: осталось $${ru(ccLeft, 0)}${ccDays ? `, сгорит через ${ccDays} дн` : ''}`",
  "`Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`": "`Облачные сессии тратят его раньше лимита тарифа: Claude Code в вебе и в мобильном приложении, облачные сессии из терминала, рутины. Длинные самостоятельные задачи выгодно отдавать в облако, пока кредит жив${ccDays ? ` — чтобы выбрать его весь, нужно около $${ru(ccLeft / ccDays, 0)} в день` : ''}.`",
- "   // rows that round to 0 % are noise": "   // строки, которые округляются до 0 %, — шум"
+ "   // rows that round to 0 % are noise": "   // строки, которые округляются до 0 %, — шум",
+ "\n  // Refresh: claude-usage://refresh (registered by --register-refresh) rebuilds this file; the page reloads until the build time changes\n": "\n  // Обновление: claude-usage://refresh (регистрирует --register-refresh) пересобирает этот файл; страница перезагружается, пока не сменится время сборки\n",
+ "Rebuild the dashboard now from the latest logs": "Пересобрать дашборд сейчас по свежим журналам",
+ "'refreshing…'": "'обновляю…'",
+ "'No new build within 3 minutes: is claude-usage:// registered (--register-refresh)?'": "'За 3 минуты новой сборки нет: зарегистрирован ли claude-usage:// (--register-refresh)?'",
+ "aria-label=\"refresh\"": "aria-label=\"обновить\""
 }

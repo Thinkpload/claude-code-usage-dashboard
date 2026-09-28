@@ -62,7 +62,8 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
     "cloud_credit": {"limit": 250, "used": 1.38, "expires": "2026-11-05 10:59", "at": "2026-09-28 01:20"}  // or null
   },
   "idle_minutes": 10,
-  "config_path": "~/.claude/usage-report/config.json"
+  "config_path": "~/.claude/usage-report/config.json",
+  "refresh_url": "claude-usage://refresh"   // or null: not registered (--register-refresh), and always null in the artifact
 }
 ```
 

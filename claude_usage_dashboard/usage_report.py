@@ -8,6 +8,7 @@ renders dashboard.html + dashboard.artifact.html.
     claude-usage-dashboard                 # rescan and build; the /usage reading is fetched with your login token
     claude-usage-dashboard --open          # ...and open it in a browser
     claude-usage-dashboard --no-fetch      # ...without touching the login token or the network
+    claude-usage-dashboard --register-refresh   # Windows: let the refresh button on the dashboard rebuild it
     claude-usage-dashboard --observe 20 --fable 34          # /usage reading by hand: all-models week and Fable
     claude-usage-dashboard --observe 20 --fable 34 --reset "2026-09-17 20:00" --factor 1.5 --at "2026-09-12 05:50"
 
@@ -34,6 +35,8 @@ HISTORY_PATH = os.path.join(OUT_DIR, "history.json")
 TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "template.html")
 CREDENTIALS_PATH = os.path.join(HOME, ".claude", ".credentials.json")
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"   # the endpoint behind Claude Code's own /usage panel
+REFRESH_URL = "claude-usage://refresh"                     # the dashboard's refresh button; --register-refresh teaches Windows to open it
+REFRESH_KEY = r"Software\Classes\claude-usage"
 
 TOKEN_FIELDS = ("input", "cache_create", "cache_read", "output", "thinking")
 
@@ -520,7 +523,38 @@ def build_data(history, cfg, now):
                    "cloud_credit": cfg.get("cloud_credit")},
         "idle_minutes": cfg["idle_minutes"],
         "config_path": CONFIG_PATH,
+        "refresh_url": REFRESH_URL if refresh_registered() else None,
     }
+
+
+def refresh_command():
+    """What the claude-usage:// link runs: this script, windowless (pythonw), on the same data folder."""
+    exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    if not os.path.exists(exe):
+        exe = sys.executable
+    return f'"{exe}" "{os.path.abspath(__file__)}" --out-dir "{OUT_DIR}"'
+
+
+def register_refresh():
+    """Windows: register the claude-usage:// scheme for the current user (HKCU, no admin rights),
+    so the refresh button on the local dashboard can rebuild it."""
+    import winreg
+    cmd = refresh_command()
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REFRESH_KEY) as k:
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, "URL:Claude usage dashboard refresh")
+        winreg.SetValueEx(k, "URL Protocol", 0, winreg.REG_SZ, "")
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REFRESH_KEY + r"\shell\open\command") as k:
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, cmd)
+    return cmd
+
+
+def refresh_registered():
+    try:
+        import winreg
+        winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CURRENT_USER, REFRESH_KEY + r"\shell\open\command"))
+        return True
+    except (ImportError, OSError):
+        return False
 
 
 def trim_for_design(data, days=10, projects=4):
@@ -599,11 +633,12 @@ def render(data, lang="en"):
     tpl, missing = localize(tpl, lang)
     head, body = tpl.split("<!--BODY-->", 1)
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    shared = body.replace("/*__DATA__*/null", json.dumps(dict(data, refresh_url=None), ensure_ascii=False).replace("</", "<\\/"))  # a published page cannot reach this machine
     body = body.replace("/*__DATA__*/null", payload)
     full = (f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">' + head + "</head><body>" + body + "</body></html>")
     paths = (os.path.join(OUT_DIR, "dashboard.html"), os.path.join(OUT_DIR, "dashboard.artifact.html"))
-    for path, content in zip(paths, (full, head + body)):
+    for path, content in zip(paths, (full, head + shared)):
         with open(path, "w", encoding="utf8") as f:
             f.write(content)
     save_json(os.path.join(OUT_DIR, "data.json"), data)  # the same data on its own, for a hand-written template
@@ -711,6 +746,7 @@ def main(argv=None):
     ap.add_argument("--open", action="store_true", help="open dashboard.html in a browser")
     ap.add_argument("--adopt", metavar="FILE.html", help="adopt a look: HTML from Claude Design -> template.html, then rebuild")
     ap.add_argument("--out-dir", metavar="DIR", help=f"data directory: config, history, rendered pages (default: {OUT_DIR})")
+    ap.add_argument("--register-refresh", action="store_true", help="Windows: register claude-usage:// so the refresh button on the dashboard rebuilds it")
     ap.add_argument("--lang", help="dashboard language; needs i18n/<lang>.json (default: config 'lang', else en)")
     args = ap.parse_args(argv)
 
@@ -720,6 +756,10 @@ def main(argv=None):
         set_out_dir(args.out_dir)
     cfg = load_config()
     now = datetime.now(tz(cfg))
+    if args.register_refresh:
+        if os.name != "nt":
+            raise SystemExit("--register-refresh is Windows-only; elsewhere refresh from a scheduler or by hand")
+        print(f"Refresh button registered: claude-usage:// runs {register_refresh()}")
     if args.adopt:
         print(f"Template updated: {adopt(args.adopt)} (the old one is beside it as template.bak.html)")
     changed = False
