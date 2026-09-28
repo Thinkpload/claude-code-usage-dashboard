@@ -323,5 +323,6 @@
  "Rebuild the dashboard now from the latest logs": "Пересобрать дашборд сейчас по свежим журналам",
  "'refreshing…'": "'обновляю…'",
  "'No new build within 3 minutes: is claude-usage:// registered (--register-refresh)?'": "'За 3 минуты новой сборки нет: зарегистрирован ли claude-usage:// (--register-refresh)?'",
- "aria-label=\"refresh\"": "aria-label=\"обновить\""
+ "aria-label=\"refresh\"": "aria-label=\"обновить\"",
+ "   // the spin keeps its phase across reloads instead of jumping back to the start": "   // вращение продолжается с той же фазы после перезагрузки, а не прыгает в начало"
 }

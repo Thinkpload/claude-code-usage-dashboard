@@ -79,14 +79,18 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .periods button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600;
   box-shadow:0 0 0 1px var(--accent),0 6px 20px var(--glow)}
 .periods button:focus-visible,.theme:focus-visible,.refresh:focus-visible,.mark:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.tools{position:absolute;top:0;right:0;display:flex;gap:6px}
-.tools button{width:34px;height:34px;padding:0;display:inline-grid;place-items:center;font-size:16px;line-height:1}
+.tools{position:absolute;top:-22px;right:0;display:flex;gap:10px}
+.tools button{width:44px;height:44px;padding:0;display:inline-grid;place-items:center;color:var(--ink-2);
+  background:color-mix(in srgb,var(--surface) 88%,transparent);box-shadow:var(--shadow);backdrop-filter:blur(6px)}
+.tools button:hover:enabled{color:var(--accent);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 6px 20px var(--glow)}
+.tools svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .tools button[hidden]{display:none}
-.top .eyebrow{padding-right:84px}
-.refresh.busy{cursor:progress}
+.top .eyebrow{padding-right:112px}
+.refresh.busy{cursor:progress;color:var(--accent)}
 .refresh.failed{border-color:var(--bad);color:var(--bad)}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:no-preference){.refresh.busy{animation:spin 1s linear infinite}}
+@media (prefers-reduced-motion:no-preference){.refresh.busy svg{animation:spin 2.4s linear infinite;animation-delay:var(--spin-delay,0s)}
+  .tools button{transition:color .3s ease,border-color .3s ease,box-shadow .3s ease}}
 
 /* ============================================================
    THE WEEK'S PRIMARY INSTRUMENT
@@ -275,7 +279,7 @@ footer.method b{color:var(--ink-2)}
       <nav class="periods" id="periods" aria-label="Period"></nav>
     </div>
     <div class="tools">
-      <button type="button" class="refresh" id="refresh" hidden title="Rebuild the dashboard now from the latest logs" aria-label="refresh">↻</button>
+      <button type="button" class="refresh" id="refresh" hidden title="Rebuild the dashboard now from the latest logs" aria-label="refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <button type="button" class="theme" id="theme"></button>
     </div>
   </header>
@@ -941,11 +945,13 @@ const DATA = /*__DATA__*/null;
     $('periods').innerHTML = periods.map((p) => `<button type="button" id="p-${p.id}" data-id="${p.id}" aria-pressed="${p.id === current.id}">${p.label}</button>`).join('');
     $('periods').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { current = periods.find((p) => p.id === b.dataset.id); try { localStorage.setItem('ccusage.period', current.id); } catch (e) { /* no storage */ } render(); }));
   }
+  const SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>';
+  const MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
   function initTheme() {
     const root = document.documentElement, btn = $('theme');
     let saved = null; try { saved = localStorage.getItem('ccusage.theme'); } catch (e) { /* no storage */ }
     if (saved) root.setAttribute('data-theme', saved);
-    const paint = () => { const light = root.getAttribute('data-theme') === 'light'; btn.textContent = light ? '☾' : '☀'; btn.title = light ? 'dark theme' : 'light theme'; btn.setAttribute('aria-label', btn.title); };
+    const paint = () => { const light = root.getAttribute('data-theme') === 'light'; btn.innerHTML = light ? MOON : SUN; btn.title = light ? 'dark theme' : 'light theme'; btn.setAttribute('aria-label', btn.title); };
     paint();
     btn.addEventListener('click', () => {
       const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
@@ -960,17 +966,22 @@ const DATA = /*__DATA__*/null;
     if (!DATA.refresh_url) return;
     btn.hidden = false;
     let asked = null; try { asked = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (e) { /* no storage */ }
-    const wait = (ms) => { btn.disabled = true; btn.classList.add('busy'); btn.title = 'refreshing…'; setTimeout(() => location.reload(), ms); };
+    const wait = (ms, since) => {   // the spin keeps its phase across reloads instead of jumping back to the start
+      btn.disabled = true; btn.classList.add('busy'); btn.title = 'refreshing…';
+      btn.style.setProperty('--spin-delay', -((Date.now() - since) % 2400) + 'ms');
+      setTimeout(() => location.reload(), ms);
+    };
     const stale = asked && asked.from === DATA.generated;
-    if (stale && Date.now() - asked.at < 180e3) wait(5000);
+    if (stale && Date.now() - asked.at < 180e3) wait(8000, asked.at);
     else {
       try { sessionStorage.removeItem(key); } catch (e) { /* no storage */ }
       if (stale) { btn.classList.add('failed'); btn.title = 'No new build within 3 minutes: is claude-usage:// registered (--register-refresh)?'; }
     }
     btn.addEventListener('click', () => {
-      try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), from: DATA.generated })); } catch (e) { /* no storage */ }
+      const at = Date.now();
+      try { sessionStorage.setItem(key, JSON.stringify({ at, from: DATA.generated })); } catch (e) { /* no storage */ }
       location.href = DATA.refresh_url;
-      wait(15000);
+      wait(20000, at);
     });
   }
   function method() {
