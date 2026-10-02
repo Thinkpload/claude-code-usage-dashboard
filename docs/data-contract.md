@@ -13,6 +13,16 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
   "projects": {"orbit-api": "core", "stargazer": "personal", …},   // project -> group
   "model_labels": {"claude-opus-5": "Opus 5", …},
   "months": ["2026-09", "2026-08", …],   // months with data, newest first
+  "billing_months": [                    // paid months, oldest first: from the day the current plan began (plan_history)
+    {"start": "2026-09-08", "end": "2026-10-07",
+     "units": 2926.4,                    // load units in the month
+     "budget": 4254.7,                   // the most the limit allowed in it: each week's budget pro rata to its time there,
+                                         // the running month to its end at this week's budget; null without one
+     "budget_units": 2925.4,             // load units over the time that has a budget, the base of pct
+     "pct": 68.8,                        // budget_units / budget x 100; null without a budget (Fable is weekly only)
+     "covered_days": 30.0, "days": 30,   // days with a budget / days in the month
+     "partial": true}                    // the month is still running
+  ],
 
   "days": [                              // ascending by date; only days with activity
     {"d": "2026-09-11",

@@ -15,6 +15,7 @@ renders dashboard.html + dashboard.artifact.html.
 From a checkout, with nothing installed: python -m claude_usage_dashboard
 """
 import argparse
+import calendar
 import fnmatch
 import glob
 import json
@@ -25,7 +26,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 HOME = os.path.expanduser("~")
 PROJECTS_DIR = os.path.join(HOME, ".claude", "projects")
@@ -448,6 +449,49 @@ def build_weeks(history, cfg, now):
     return weeks, budgets
 
 
+def billing_day(cfg):
+    """The day a paid month starts: the day the current plan began (an upgrade restarts the billing cycle)."""
+    return int(max(cfg["plan_history"], key=lambda h: h["from"])["from"][8:10])
+
+
+def billing_start(d, day):
+    """Start of the paid month holding date d; a billing day past the end of a short month falls on its last day."""
+    on = lambda y, m: date(y, m, min(day, calendar.monthrange(y, m)[1]))
+    s = on(d.year, d.month)
+    return s if s <= d else on(d.year - (d.month == 1), d.month - 1 or 12)
+
+
+def build_billing_months(history, weeks, cfg, now):
+    """Paid months, oldest first -> load units and the share of the most the limit allowed in them. Limit windows
+    straddle months, so each week lends a month its budget pro rata to the time it spends there, and the share
+    counts that time only: days with no budget neither pad nor dilute it. The running month is measured against
+    its whole length, the days ahead at this week's budget, so its share climbs to the final figure the way the
+    week's does."""
+    day = billing_day(cfg)
+    out = []
+    for s in sorted({billing_start(date.fromisoformat(d), day) for d in history["days"]}):
+        e = billing_start(s + timedelta(days=31), day)
+        ms, me = (datetime(x.year, x.month, x.day, tzinfo=tz(cfg)) for x in (s, e))
+        used = budget = 0.0
+        covered = timedelta(0)
+        for i, w in enumerate(weeks):
+            ws = parse_local(w["start_at"], cfg)
+            we = ws + timedelta(days=7) if i < len(weeks) - 1 else max(ws + timedelta(days=7), me)   # the last window holds now: the days ahead run on at its budget
+            a, b = max(ws, ms), min(we, me)
+            if b <= a or not w["budget"]:
+                continue
+            share = (b - a) / timedelta(days=7)
+            covered += b - a
+            used += units_between(history, a, min(b, now), cfg)
+            budget += w["budget"] * share
+        units = sum(day_units(history, d, cfg) for d in history["days"] if s.isoformat() <= d < e.isoformat())
+        out.append({"start": s.isoformat(), "end": (e - timedelta(days=1)).isoformat(), "units": round(units, 1),
+                    "budget": round(budget, 1) if budget else None, "budget_units": round(used, 1),
+                    "pct": round(100 * used / budget, 1) if budget else None,
+                    "covered_days": round(covered / timedelta(days=1), 1), "days": (e - s).days, "partial": me > now})
+    return out
+
+
 def norm_name(s):
     """'acme-api', 'Acme API' and the slug Acme-API all collapse to one key."""
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
@@ -514,6 +558,7 @@ def build_data(history, cfg, now):
         "token_weights": cfg["token_weights"],
         "days": days,
         "months": months,
+        "billing_months": build_billing_months(history, weeks, cfg, now),
         "weeks": weeks,
         "commits": commits,
         "git": {"repos": repo_count, "authors": cfg.get("git_authors", [])},
@@ -573,6 +618,7 @@ def trim_for_design(data, days=10, projects=4):
     d["projects"] = {n: g for n, g in data["projects"].items() if n in top}
     d["weeks"] = [w for w in data["weeks"] if w["end"] >= first]
     d["months"] = sorted({day["d"][:7] for day in d["days"]}, reverse=True)
+    d["billing_months"] = [b for b in data["billing_months"] if b["end"] >= first]
     return d
 
 

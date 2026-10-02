@@ -118,6 +118,9 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .dial .d-needle{stroke:var(--ink);stroke-width:3.5;stroke-linecap:round}
 .dial .d-needle-alt{stroke:var(--ink-2);stroke-width:1.75;stroke-linecap:round;stroke-dasharray:4 4}
 .dial .d-hub{fill:var(--surface);stroke:var(--ink);stroke-width:1.75}
+.dial .d-search{transform-box:view-box}
+@keyframes search{0%,100%{transform:rotate(-30deg)}20%{transform:rotate(22deg)}38%{transform:rotate(-12deg)}56%{transform:rotate(34deg)}76%{transform:rotate(-22deg)}90%{transform:rotate(6deg)}}
+@media (prefers-reduced-motion:no-preference){.dial .d-search{animation:search 7s ease-in-out infinite}}
 .dial text{fill:var(--muted);font-size:12px;font-family:"Barlow Semi Condensed",var(--font)}
 .dial .d-read{font-size:40px;font-weight:600;letter-spacing:-.025em;fill:var(--now)}
 
@@ -220,7 +223,8 @@ p.note{margin:0;line-height:1.55;max-width:70ch}
 
 /* monthly trend: rows instead of two empty charts */
 .months{display:grid;gap:11px}
-.months .row{display:grid;grid-template-columns:66px minmax(0,1fr) 58px minmax(0,1fr) 58px;gap:12px;align-items:center;font-size:12.5px}
+.months .row{display:grid;grid-template-columns:88px minmax(0,1fr) 50px minmax(0,1fr) 50px 52px;gap:10px;align-items:center;font-size:12.5px}
+.months .row.partial .num:last-child{opacity:.55}
 .months .row.hd{color:var(--muted);font-family:var(--mono);font-size:11px}
 .months .bar{height:8px;border-radius:999px;background:var(--surface-2);position:relative}
 .months .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px}
@@ -311,7 +315,7 @@ footer.method b{color:var(--ink-2)}
     </div>
 
     <div class="card" id="k-months" data-span="6">
-      <header><h2>Monthly trend</h2><span class="note">every month on record</span></header>
+      <header><h2>Monthly trend</h2><span class="note">paid months, every one on record</span></header>
       <div class="chart" id="c-months"></div>
     </div>
     <div class="card" id="k-models" data-span="6">
@@ -352,7 +356,6 @@ const DATA = /*__DATA__*/null;
   const GROUP_COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--other)'];
   const RAMP = ['var(--r1)', 'var(--r2)', 'var(--r3)', 'var(--r4)'];
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const groupIndex = Object.fromEntries(DATA.groups.map((g, i) => [g.id, i]));
   const groupLabel = Object.fromEntries(DATA.groups.map((g) => [g.id, g.label]));
 
@@ -361,14 +364,14 @@ const DATA = /*__DATA__*/null;
   const fmtH = (sec) => ru(sec / 3600, 1) + ' h';
   const fmtTok = (n) => n >= 1e6 ? ru(n / 1e6, n >= 1e7 ? 0 : 1) + ' M' : n >= 1e3 ? ru(n / 1e3, 0) + ' k' : ru(n);
   const fmtDate = (s) => { const [y, m, d] = s.split('-'); return `${m}/${d}`; };
-  const fmtMonth = (ym) => { const [y, m] = ym.split('-'); return `${MONTHS[+m - 1]} ${y}`; };
+  const fmtSpan = (b) => `${fmtDate(b.start)}–${fmtDate(b.end)}`;
   const modelLabel = (m) => DATA.model_labels[m] || m.replace(/^claude-/, '');
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const parseAt = (s) => new Date(String(s).replace(' ', 'T'));
 
   // ---------- periods ----------
   const periods = [{ id: '30d', label: '30 days', from: addDays(DATA.today, -29), to: DATA.today }];
-  for (const ym of DATA.months) periods.push({ id: ym, label: fmtMonth(ym), from: ym + '-01', to: ym + '-31' });
+  for (const b of [...DATA.billing_months].reverse()) periods.push({ id: b.start, label: fmtSpan(b), from: b.start, to: b.end });
   periods.push({ id: 'all', label: 'All time', from: '0000-00-00', to: '9999-99-99' });
   let current = periods[0];
   try { const s = localStorage.getItem('ccusage.period'); const p = periods.find((x) => x.id === s); if (p) current = p; } catch (e) { /* no storage */ }
@@ -512,12 +515,14 @@ const DATA = /*__DATA__*/null;
       .forEach(([x, y, col]) => el('path', { d: arc(x + .012, y - .012, R + 15), class: 'd-zone', stroke: col }, s));
     [K_LO, K_HI].forEach((v) => { const [x0, y0] = pt(ang(v), R - 9), [x1, y1] = pt(ang(v), R + 23); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'd-tick' }, s); });
     // the needles grow out of the axis; the thin dashed one is Fable, on its own budget and pace
-    const needle = (v, cls) => { const [ix, iy] = pt(ang(v), 5), [ox, oy] = pt(ang(v), R - 15); el('line', { x1: ix, y1: iy, x2: ox, y2: oy, class: cls }, s); };
+    const needle = (v, cls, parent = s) => { const [ix, iy] = pt(ang(v), 5), [ox, oy] = pt(ang(v), R - 15); el('line', { x1: ix, y1: iy, x2: ox, y2: oy, class: cls }, parent); };
     if (kF != null) needle(kF, 'd-needle-alt');
-    needle(k, 'd-needle');
+    // no pace yet: the needle searches back and forth, like a compass that has not settled
+    if (k == null) needle((K_MIN + K_MAX) / 2, 'd-needle', el('g', { class: 'd-search', style: `transform-origin:${cx}px ${cy}px` }, s));
+    else needle(k, 'd-needle');
     el('circle', { cx, cy, r: 4.5, class: 'd-hub' }, s);
     // the reading sits below the axis: at “steady” the needle points up and would strike through it
-    text(s, cx, cy + 36, '×' + ru(Math.max(k, kF ?? 0), 2), { 'text-anchor': 'middle', class: 'd-read' });
+    if (k != null) text(s, cx, cy + 36, '×' + ru(Math.max(k, kF ?? 0), 2), { 'text-anchor': 'middle', class: 'd-read' });
     text(s, ...pt(ang(K_MIN), R + 34), 'Cold', { 'text-anchor': 'start' });
     text(s, ...pt(ang(K_MAX), R + 34), 'Hot', { 'text-anchor': 'end' });
     text(s, cx, cy - R - 26, 'Steady', { 'text-anchor': 'middle' });
@@ -610,6 +615,20 @@ const DATA = /*__DATA__*/null;
          <div class="track thin"><i class="credit" style="width:${Math.min(100, 100 * cc.used / cc.limit)}%"></i></div>
        </div>`;
 
+    // the paid month against the most the limit allows in it; its "due now" mark is the share of the month gone by
+    const bm = DATA.billing_months[DATA.billing_months.length - 1];
+    const bmOn = bm && bm.partial && bm.pct != null;
+    const bmStart = bmOn && parseAt(bm.start + ' 00:00'), bmEnd = bmOn && parseAt(addDays(bm.end, 1) + ' 00:00');
+    const bmDue = bmOn ? Math.max(0, Math.min(1, (now - bmStart) / (bmEnd - bmStart))) : 0;
+    const bmRail = !bmOn ? '' :
+      `<div class="rail" id="rail-month">
+         <div class="rail-head">
+           <span class="cap">Paid month ${fmtSpan(bm)}, <b>${ru(bm.budget_units, 0)}</b> of <b>${ru(bm.budget, 0)}</b> units</span>
+           <span class="pct">${ru(bm.pct, 0)} %</span>
+         </div>
+         <div class="track thin"><i class="${bm.pct >= 100 ? 'full' : ''}" style="width:${Math.min(100, bm.pct)}%"></i><b class="due" style="left:${(100 * bmDue).toFixed(1)}%"></b></div>
+       </div>`;
+
     const boost = cur.boost > 1 ? ` This week's budget is raised by a promo of ${ru((cur.boost - 1) * 100, 0)} %.` : '';
     host.innerHTML =
       `<figure class="dial" id="dial"></figure>
@@ -619,6 +638,7 @@ const DATA = /*__DATA__*/null;
          <div class="w-rails">
            ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false)}
            ${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}
+           ${bmRail}
            ${ccRail}
          </div>
          <p class="w-keys"><span><i class="k-due"></i>where you should be now</span>
@@ -626,10 +646,11 @@ const DATA = /*__DATA__*/null;
          <p class="w-foot">${cur.plan_label}, week ${fmtDate(cur.start)}–${fmtDate(cur.end)}, reset ${DOW_WHEN[(reset.getDay() + 6) % 7]} ${fmtDate(cur.end)}, ${hhmm(reset)}.${boost}</p>
        </div>`;
 
-    if (k != null) { paceDial($('dial'), { k, kF }); } else { $('dial').innerHTML = ''; }
+    paceDial($('dial'), { k, kF });
     if (k != null) bindTip($('dial'), `<b>Pace gauge</b> - actual ÷ plan<br><span class="k">plan for this hour</span> ${ru(plan * 100, 0)} %${prof ? '' : ' (linear: too little history for a profile)'}<br><span class="k">all models</span> ${ru(cur.pct, 0)} % → ×${ru(k, 2)}${kF != null ? `<br><span class="k">Fable</span> ${ru(cur.fable_pct, 0)} % → ×${ru(kF, 2)}` : ''}`);
     if (known) bindTip($('rail-all'), `<b>All models</b><br>${ru(cur.units, 0)} of ${ru(cur.budget, 0)} units - ${ru(cur.pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %<br><span class="k">time elapsed</span> ${ru(100 * (now - start) / span, 0)} %`);
     if (ccOn) bindTip($('rail-credit'), `<b>Cloud session credit</b><br>$${ru(cc.used, 2)} of $${ru(cc.limit, 0)} spent · $${ru(ccLeft, 2)} left${ccEnd ? `<br><span class="k">burns out</span> ${fmtDate(cc.expires.slice(0, 10))}, ${hhmm(ccEnd)} · in ${dur(ccEnd - now)}<br><span class="k">to use it up</span> ~$${ru(ccLeft / Math.max(1, (ccEnd - now) / 864e5), 0)} a day` : ''}<br><span class="k">as of</span> ${cc.at}<br>Pays for cloud sessions first: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines (/schedule). Once it is spent or burns out, cloud sessions draw on the plan limit again.`);
+    if (bmOn) bindTip($('rail-month'), `<b>Paid month ${fmtSpan(bm)}</b><br>${ru(bm.budget_units, 0)} of ${ru(bm.budget, 0)} units - ${ru(bm.pct, 0)} %<br><span class="k">month gone by</span> ${ru(100 * bmDue, 0)} %<br><span class="k">left</span> ${dur(Math.max(0, bmEnd - now))} · up to ${ru(Math.max(0, bm.budget - bm.budget_units), 0)} units<br>The most the limit allows in the month: each week’s budget for its days in it, the days still ahead at this week’s budget.`);
     if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
   }
 
@@ -803,21 +824,31 @@ const DATA = /*__DATA__*/null;
   // ---------- monthly trend: rows, not two empty charts ----------
   function months() {
     const c = $('c-months');
-    const by = {};
-    for (const day of DATA.days) { const m = day.d.slice(0, 7); const M = by[m] || (by[m] = { sec: 0, out: 0, calls: 0 }); for (const v of Object.values(day.p)) { M.sec += v.sec; for (const x of Object.values(v.models)) { M.out += x.output; M.calls += x.calls; } } }
-    const keys = Object.keys(by).sort(); if (!keys.length) { c.innerHTML = ''; return; }
-    const maxH = Math.max(...keys.map((m) => by[m].sec / 3600)) || 1;
-    const maxO = Math.max(...keys.map((m) => by[m].out / 1e6)) || 1;
-    c.innerHTML = `<div class="months"><div class="row hd"><span></span><span>active hours</span><span></span><span>output tokens</span><span></span></div>` +
-      keys.map((m) => {
-        const h = by[m].sec / 3600, o = by[m].out / 1e6, [yy, mm] = m.split('-');
-        return `<div class="row" title="${fmtMonth(m)} · ${ru(by[m].calls)} calls">
-          <span class="m">${MONTHS[+mm - 1].slice(0, 3)} ${yy.slice(2)}</span>
-          <div class="bar"><i style="width:${(100 * h / maxH).toFixed(1)}%;background:var(--s1)"></i></div>
-          <span class="num">${ru(h, 0)} h</span>
-          <div class="bar"><i style="width:${(100 * o / maxO).toFixed(1)}%;background:var(--r3)"></i></div>
-          <span class="num">${ru(o, 1)} M</span></div>`;
-      }).join('') + '</div>';
+    const B = DATA.billing_months; if (!B.length) { c.innerHTML = ''; return; }
+    const by = B.map((b) => {
+      const M = { sec: 0, out: 0, calls: 0 };
+      for (const day of DATA.days) if (day.d >= b.start && day.d <= b.end) for (const v of Object.values(day.p)) { M.sec += v.sec; for (const x of Object.values(v.models)) { M.out += x.output; M.calls += x.calls; } }
+      return M;
+    });
+    const maxH = Math.max(...by.map((M) => M.sec / 3600)) || 1;
+    const maxU = Math.max(...B.map((b) => b.units)) || 1;
+    c.innerHTML = `<div class="months"><div class="row hd"><span></span><span>active hours</span><span></span><span>load units</span><span></span><span style="text-align:right">limit</span></div>` +
+      B.map((b, i) => `<div class="row${b.partial ? ' partial' : ''}" data-i="${i}" tabindex="0">
+          <span class="m">${fmtSpan(b)}</span>
+          <div class="bar"><i style="width:${(100 * by[i].sec / 3600 / maxH).toFixed(1)}%;background:var(--s1)"></i></div>
+          <span class="num">${ru(by[i].sec / 3600, 0)} h</span>
+          <div class="bar"><i style="width:${(100 * b.units / maxU).toFixed(1)}%;background:var(--r3)"></i></div>
+          <span class="num">${ru(b.units, 0)}</span>
+          <span class="num">${b.pct == null ? '—' : ru(b.pct, 0) + ' %'}</span></div>`).join('') + '</div>';
+    // the share of the most the limit allowed: weeks straddle paid months, so each lends a month its budget pro rata to its time there
+    c.querySelectorAll('.row[data-i]').forEach((r) => {
+      const b = B[r.dataset.i], M = by[r.dataset.i];
+      bindTip(r, `<b>${fmtSpan(b)}</b> · paid month${b.partial ? `, ${dur(Math.max(0, parseAt(addDays(b.end, 1) + ' 00:00') - parseAt(DATA.generated)))} left` : ''}<br>${ru(b.units, 0)} load units · ${fmtTok(M.out)} out · ${ru(M.calls)} calls<br>` +
+        (b.pct == null ? 'no share of the limit: no week of this month has a calibrated budget' :
+          `of the limit ${ru(b.pct, 0)} % · ${ru(b.budget_units, 0)} of ${ru(b.budget, 0)} units` +
+          (b.covered_days < b.days - 0.05 ? `<br><span class="k">counted over</span> ${ru(b.covered_days, 0)} of ${ru(b.days, 0)} d, the rest fell on weeks with no budget` : '') +
+          (b.partial ? '<br>the days still ahead count at this week’s budget' : '')));
+    });
   }
 
   // ---------- models: ring ----------

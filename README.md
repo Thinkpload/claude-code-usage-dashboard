@@ -109,7 +109,7 @@ Copy `config.example.json` to `~/.claude/usage-report/config.json` and edit. The
 | Key | What it does |
 |---|---|
 | `groups` | three project groups by name pattern, first match wins — this is what the colours mean |
-| `plan_history` | which plan you were on when: `[{"from": "2026-09-08", "plan": "max5"}]` |
+| `plan_history` | which plan you were on when: `[{"from": "2026-09-08", "plan": "max5"}]`; the latest entry's day is also the day your paid month starts |
 | `observations` | your `/usage` readings; fetched on every run (or written by `--observe`), safe to edit by hand |
 | `week_reset` | the moment your week rolls over, from `/usage` |
 | `boosts` | temporary promos: `[{"from": …, "to": …, "factor": 1.5}]` |
