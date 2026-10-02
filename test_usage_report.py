@@ -204,10 +204,38 @@ def test_week_with_its_own_reading_follows_it():
     assert cur["pct"] == round(75 / 2000 * 100, 1), cur                                       # 2.5 % at the reading + one more day
 
 
+def test_billing_months_split_weeks_and_run_to_the_end():
+    """A paid month starts on the day the current plan began. It takes each limit week's budget pro rata to the
+    time the week spends in it, and the share counts that time only: days with no budget neither pad nor dilute
+    it. The running month is measured against its whole length, the days ahead at this week's budget."""
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "pro"}, {"from": "2026-09-08", "plan": "max5"}]
+    cfg["week_reset"] = "2026-09-17 20:00"        # the window Thu 01.10 20:00 -> Thu 08.10 20:00 straddles two paid months
+    cfg["boosts"] = []
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units a day
+    hours = [0] * 24; hours[10] = 3600
+    day = lambda: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": {"claude-opus-5": opus}}}
+    hist = {"days": {d: day() for d in ("2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09")}}
+    cfg["observations"] = [{"at": "2026-10-07 12:00", "pct": 5}]   # 50 units = 5 % -> a budget of 1000
+    now = ur.parse_local("2026-10-09 12:00", cfg)
+    weeks, _ = ur.build_weeks(hist, cfg, now)
+    assert ur.billing_day(cfg) == 8
+    sep, oct_ = ur.build_billing_months(hist, weeks, cfg, now)
+    assert (sep["start"], sep["end"], oct_["start"], oct_["end"]) == ("2026-09-08", "2026-10-07", "2026-10-08", "2026-11-07")
+    # 08.09-07.10 holds 148 h of the first week (01.10 20:00 -> 08.10 00:00); before it there is no week, so no budget
+    assert sep["budget"] == round(1000 * 148 / 168, 1) and sep["pct"] == round(100 * 50 / (1000 * 148 / 168), 1), sep
+    assert sep["covered_days"] == round(148 / 24, 1) and sep["days"] == 30 and not sep["partial"], sep
+    # 08.10-07.11 is running: all 31 days at 1000 a week, of which 50 units are spent so far
+    assert oct_["budget"] == round(1000 * 31 / 7, 1) and oct_["budget_units"] == 50, oct_
+    assert oct_["pct"] == round(100 * 50 / (1000 * 31 / 7), 1) and oct_["partial"] and oct_["days"] == 31, oct_
+    # a billing day past the end of a short month falls on its last day
+    assert ur.billing_start(date(2026, 3, 1), 31) == date(2026, 2, 28)
+
+
 def test_refresh_button_only_on_local_page():
     """The refresh link reaches this machine, so only dashboard.html carries it; the published artifact
     must not, and the command it runs points at this script and this data folder."""
-    data = {"refresh_url": ur.REFRESH_URL, "today": "2026-09-20", "days": [], "commits": {}, "projects": {}, "weeks": []}
+    data = {"refresh_url": ur.REFRESH_URL, "today": "2026-09-20", "days": [], "commits": {}, "projects": {}, "weeks": [], "billing_months": []}
     old = ur.OUT_DIR
     with tempfile.TemporaryDirectory() as tmp:
         try:
