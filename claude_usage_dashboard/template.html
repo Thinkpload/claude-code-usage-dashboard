@@ -289,7 +289,17 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .ec .ec-s{font-size:12px;line-height:1.4;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ec.few b{color:var(--muted)}
 .ec.now b{color:var(--ink-2)}
+.ec.now::before{opacity:.45}
 .eff.plan{padding-top:18px}
+.eff .cap{fill:var(--surface-2)}
+.eff .cap.gone{fill:color-mix(in srgb,var(--bad) 18%,var(--surface-2))}
+.eff .fill{opacity:.62}
+.eff .fill.now-fill{opacity:.35}
+.eff .avg{stroke:var(--ink);stroke-width:1;opacity:.5;vector-effect:non-scaling-stroke}
+.eff .out{fill:var(--surface);opacity:.72}
+.plan-sky{margin:2px 0 0}
+.plan-sky svg{display:block;width:100%;height:64px;overflow:visible}
+.eff .today{stroke:var(--ink);stroke-width:2;vector-effect:non-scaling-stroke}
 .ec .ec-s em{font-style:normal;color:var(--muted)}
 .ec:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:1}
 .eff-flow{display:grid;grid-template-columns:auto 1fr;gap:10px;margin:10px 0 0}
@@ -1104,30 +1114,57 @@ const DATA = /*__DATA__*/null;
     const bm = DATA.billing_months.find((b) => b.start === current.from) || DATA.billing_months[DATA.billing_months.length - 1];
     const mw = bm ? monthWeeks(bm).filter((x) => x.w.pct != null) : [], mDone = mw.filter((x) => !x.w.partial);
     const mAvg = mDone.length ? mDone.reduce((s, x) => s + x.w.pct * x.share, 0) / mDone.reduce((s, x) => s + x.share, 0) : null;
-    // the plan: a card per limit week of the month, its share of its own limit; the tick is the month's average
+    // the plan, built like the effort block: a card per limit week of the month (its share of its own limit, the tick is
+    // the month's average), then a column under each card, as tall as what the week used: the tint above a finished week
+    // is what burned out, the days of a week outside the paid month are shaded. Colour by heat, as on the pace gauge
     let planBlock = '';
     if (mDone.length) {
-      const lost = mDone.reduce((s, x) => s + Math.max(0, x.w.budget - x.w.units) * x.share, 0);
-      const worst = mDone.reduce((m, x) => (x.w.pct < m.w.pct ? x : m));
+      const burned = (x) => (x.w.partial ? 0 : Math.max(0, x.w.budget - x.w.units) * x.share);
+      const lost = mDone.reduce((s, x) => s + burned(x), 0);
       const hot = mDone.filter((x) => x.w.pct >= 95).length, ceiling = mAvg >= 90 || hot >= 2, roomy = mAvg < 40;
       const head = ceiling ? `The plan is at its ceiling: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
           : roomy ? `The plan is roomy: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
           : `The plan fits: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`;
       const note = (lost < 1 ? 'Nothing burned out: every finished week ran to its limit.'
-          : `Burned out ~<b>${ru(lost, 0)} units</b> of weekly limits, <b>${ru(100 * lost / bm.budget, 0)} %</b> of the month; the most in ${fmtSpan(worst.w)}, used ${ru(worst.w.pct, 0)} %.`) +
+          : `Burned out ~<b>${ru(lost, 0)} units</b> of weekly limits, <b>${ru(100 * lost / bm.budget, 0)} %</b> of the month.`) +
         (hot ? ` Weeks near 100 %: ${hot}.` : '') +
-        (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : '') + ' Tick = the month’s average.';
-      planBlock = `<section class="eff plan" id="plan"><h3>${head}</h3><p class="eff-note">${note}</p><div class="eff-cards" style="--n:${mw.length}">` +
-        mw.map((x, i) => {
-          const w = x.w, left = Math.max(0, w.budget - w.units);
-          return `<div class="ec${w.partial ? ' now' : ''}" data-i="${i}" tabindex="0" style="--c:${w.pct >= 100 ? 'var(--bad)' : 'var(--accent)'}"><span class="ec-k">${fmtSpan(w)}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d` : ''}</span><b>${ru(w.pct, 0)} %</b>` +
-            `<span class="ec-m"><i style="width:${Math.min(100, w.pct).toFixed(1)}%"></i><s style="left:${Math.min(100, mAvg).toFixed(1)}%"></s></span>` +
-            `<span class="ec-s">${w.partial ? `<em>running</em> · ${ru(left, 0)} units left` : `${ru(w.units, 0)} of ${ru(w.budget, 0)} units`}</span></div>`;
-        }).join('') + '</div></section>';
-      planTips = () => document.querySelectorAll('#plan .ec').forEach((n) => {
-        const x = mw[n.dataset.i], w = x.w;
-        bindTip(n, `<b>${fmtSpan(w)}</b>${w.partial ? ' · running' : ''}<br>${ru(w.units, 0)} of ${ru(w.budget, 0)} units - ${ru(w.pct, 0)} %<br><span class="k">in the month</span> ${ru(x.share * 7, 1)} of 7 d<br><span class="k">month average</span> ${ru(mAvg, 0)} %`);
-      });
+        (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : '') +
+        ' Bar = share of the week’s limit, tick = the month’s average; below, the days outside the month are shaded.';
+      const heat = (w) => (w.partial ? 'var(--accent)' : w.pct >= 100 ? 'var(--bad)' : w.pct < 60 ? 'var(--accent-2)' : 'var(--accent)');
+      const avgAt = Math.min(100, mAvg).toFixed(1) + '%';
+      const card = (x, i) => {
+        const w = x.w, left = Math.max(0, w.budget - w.units), b = burned(x);
+        return `<div class="ec${w.partial ? ' now' : ''}" data-k="${i}" tabindex="0" style="--c:${heat(w)}"><span class="ec-k">${fmtSpan(w)}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d` : ''}</span><b>${ru(w.pct, 0)} %</b>` +
+          `<span class="ec-m"><i style="width:${Math.min(100, w.pct).toFixed(1)}%"></i><s style="left:${avgAt}"></s></span>` +
+          `<span class="ec-s">${ru(w.units, 0)} of ${ru(w.budget, 0)} units</span>` +
+          `<span class="ec-s">${w.partial ? `<em>running</em> · ${ru(left, 0)} left` : b < 1 ? '<em>ran to the limit</em>' : `<em>burned out</em> ${ru(b, 0)}${x.share < 0.995 ? ' in the month' : ''}`}</span></div>`;
+      };
+      const ms = parseAt(bm.start + ' 00:00'), me = parseAt(addDays(bm.end, 1) + ' 00:00'), now = +parseAt(DATA.generated);
+      // one column per card, the same width and the same 2px gap, so the chart sits square under the cards
+      const W = 1000, H = 64, cw = W / mw.length, g = 0.9, Y = (pc) => H - H * Math.min(100, pc) / 100, wk = 7 * 864e5;
+      const sky = mw.map((x, i) => {
+        const w = x.w, x0 = i * cw + (i ? g : 0), x1 = (i + 1) * cw - (i < mw.length - 1 ? g : 0), at = (t) => x0 + (x1 - x0) * Math.max(0, Math.min(1, (t - x.a) / wk));
+        const in0 = at(Math.max(+x.a, +ms)), in1 = at(Math.min(+x.a + wk, +me));
+        return `<g data-k="${i}"><rect class="seg cap${w.partial ? '' : ' gone'}" x="${x0}" y="0" width="${x1 - x0}" height="${H}"/>` +
+          `<rect class="seg fill${w.partial ? ' now-fill' : ''}" fill="${heat(w)}" x="${x0}" y="${Y(w.pct)}" width="${x1 - x0}" height="${H - Y(w.pct)}"/>` +
+          (in0 > x0 ? `<rect class="out" x="${x0}" y="0" width="${in0 - x0}" height="${H}"/>` : '') + (in1 < x1 ? `<rect class="out" x="${in1}" y="0" width="${x1 - in1}" height="${H}"/>` : '') +
+          (w.partial && now > x.a && now < +x.a + wk ? `<line class="today" x1="${at(now)}" x2="${at(now)}" y1="-4" y2="${H + 4}"/>` : '') + '</g>';
+      }).join('') + `<line class="avg" x1="0" x2="${W}" y1="${Y(mAvg)}" y2="${Y(mAvg)}"/>`;
+      planBlock = `<section class="eff plan" id="plan"><h3>${head}</h3><p class="eff-note">${note}</p>
+        <div class="eff-cards" style="--n:${mw.length}">${mw.map(card).join('')}</div>
+        <div class="plan-sky"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${sky}</svg></div></section>`;
+      planTips = () => {
+        const host = $('plan'); if (!host) return;
+        const on = (k) => { host.classList.toggle('dim', k != null); host.querySelectorAll('.ec').forEach((n) => n.classList.toggle('on', n.dataset.k === k)); host.querySelectorAll('g[data-k] > *').forEach((n) => n.classList.toggle('on', n.parentNode.dataset.k === k)); };
+        host.querySelectorAll('.ec, g[data-k]').forEach((n) => {
+          const k = n.dataset.k, x = mw[k], w = x.w, b = burned(x);
+          n.addEventListener('mouseenter', () => on(k)); n.addEventListener('focus', () => on(k));
+          n.addEventListener('mouseleave', () => on(null)); n.addEventListener('blur', () => on(null));
+          bindTip(n, `<b>${fmtSpan(w)}</b>${w.partial ? ' · running' : ''}<br>${ru(w.units, 0)} of ${ru(w.budget, 0)} units - ${ru(w.pct, 0)} %<br><span class="k">in the month</span> ${ru(x.share * 7, 1)} of 7 d` +
+            (w.partial ? `<br><span class="k">left</span> ${ru(Math.max(0, w.budget - w.units), 0)} units` : `<br><span class="k">burned out</span> ${ru(b, 0)} units${x.share < 0.995 ? ', for its days in the month' : ''}`) +
+            `<br><span class="k">month average</span> ${ru(mAvg, 0)} %`);
+        });
+      };
     }
     // this week: how much is left to take before the reset, in units and in 5-hour windows
     const cw = DATA.weeks[DATA.weeks.length - 1];
