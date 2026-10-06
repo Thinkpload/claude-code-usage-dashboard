@@ -21,10 +21,11 @@ no API key, no network. Pure Python, no dependencies.
 ## What it tells you
 
 - **What does an effort level really cost?** Anthropic does not publish it. The dashboard prices it
-  from your own logs, `low` → `max`: one call at each level against a call at `high`, both the price
-  against your limit and the output it writes, thinking included. On one real month that came to
-  `max` = ×1.41 the price and ×2.21 the output of `high`, `medium` = ×0.60 the price. Bands show how
-  each level's share of the calls flows into its share of the spend.
+  from your own logs, `low` → `max`: one call at each level against a call at `high` on the same model
+  version and at a similar context size, so neither a pricier model nor a longer context passes for
+  effort. Both the price against your limit and the output it writes, thinking included, for all
+  models or one at a time. On one real month: `max` = ×1.59 the price and ×1.91 the output of `high`,
+  `medium` = ×0.86; on Fable 5.1 alone `xhigh` costs ×1.56 of `high`, against ×1.14 across models.
 - **Am I going to hit the weekly limit?** A calibrated gauge, not a guess: `k = actual ÷ plan`, where
   the plan follows *when you actually work* rather than the calendar. It says things like "you will
   hit the limit on Wednesday around 11:00 and be without it for 1 d 8 h."
