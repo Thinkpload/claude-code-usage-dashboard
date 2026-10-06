@@ -74,6 +74,22 @@ def test_skill_attribution_and_context_buckets():
     assert days["2026-09-01"]["acme-api"]["msgs"] == 1, "the meta record carrying the skill text is not a user message"
 
 
+def test_effort_splits_spend():
+    """Calls and their load units by effort level, so the page can set a call's share against its spend."""
+    with tempfile.TemporaryDirectory() as root:
+        hi, mx = asst("2026-09-01T12:00:05Z", "r1", out=100), asst("2026-09-01T12:00:30Z", "r2", out=900)
+        hi["effort"], mx["effort"] = "high", "max"
+        write_session(root, SLUG, "s1", [user("2026-09-01T12:00:00Z"), hi, mx])
+        days = ur.scan(CFG, root)
+    ins = days["2026-09-01"]["acme-api"]["ins"]
+    assert dict(ins["effort"]) == {"high": 1, "max": 1}
+    eu = ins["effort_units"]
+    assert abs(eu["high"] + eu["max"] - ins["units"]) < 1e-9 and eu["max"] > eu["high"], dict(eu)
+    assert dict(ins["effort_out"]) == {"high": 100, "max": 900}
+    hist = ur.merge({"days": {}}, days)
+    assert set(hist["days"]["2026-09-01"]["acme-api"]["ins"]["effort_units"]) == {"high", "max"}
+
+
 def test_groups_and_names():
     assert ur.project_name("c--Users-ann-code-acme-billing", CFG) == "acme-billing"
     assert ur.project_name("c--Users-ann", CFG) == "~"
@@ -134,7 +150,7 @@ def test_parse_usage_from_endpoint_payload():
         {"kind": "weekly_scoped", "group": "weekly", "percent": 49, "resets_at": "2026-09-17T16:59:59.892328+00:00",
          "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}}]}
     obs, reset = ur.parse_usage(payload, cfg)
-    assert obs == {"pct": 48, "fable_pct": 49} and reset == "2026-09-17 20:00", (obs, reset)   # UTC -> +3
+    assert obs == {"pct": 48, "fable_pct": 49, "five_pct": 49, "five_reset": "2026-09-14 18:30"} and reset == "2026-09-17 20:00", (obs, reset)   # UTC -> +3
     assert ur.parse_usage({"limits": []}, cfg) == (None, None)
     # the cloud session credit sits under a codename; it is the entry that carries a dollar limit
     credit = {"five_hour": {"utilization": 20.0, "limit_dollars": None, "used_dollars": None},
@@ -148,6 +164,10 @@ def test_parse_usage_from_endpoint_payload():
     assert [o["pct"] for o in cfg["observations"]] == [49]
     ur.record_observation(cfg, {"at": "2026-09-14 18:00", "pct": 51}, ur.parse_local("2026-09-14 18:00", cfg))
     assert [o["pct"] for o in cfg["observations"]] == [49, 51]
+    # a new 5-hour window within the hour is news, not a rerun: the reading of the window that closed stays
+    cfg["observations"] = [{"at": "2026-09-14 16:00", "pct": 48, "five_pct": 79, "five_reset": "2026-09-14 16:10"}]
+    ur.record_observation(cfg, {"at": "2026-09-14 16:20", "pct": 48, "five_pct": 2, "five_reset": "2026-09-14 21:10"}, ur.parse_local("2026-09-14 16:20", cfg))
+    assert [o["five_pct"] for o in cfg["observations"]] == [79, 2]
 
 
 def test_calibration_pools_observations_by_size():
@@ -230,6 +250,28 @@ def test_billing_months_split_weeks_and_run_to_the_end():
     assert oct_["pct"] == round(100 * 50 / (1000 * 31 / 7), 1) and oct_["partial"] and oct_["days"] == 31, oct_
     # a billing day past the end of a short month falls on its last day
     assert ur.billing_start(date(2026, 3, 1), 31) == date(2026, 2, 28)
+
+
+def test_five_hour_window_in_units():
+    """The 5-hour window is sized like the week: the units spent since it opened (its reset minus 5 h) over the
+    share /usage shows, pooled over the readings of the current plan, promos divided out and the current one applied."""
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "pro"}, {"from": "2026-09-08", "plan": "max5"}]
+    cfg["boosts"] = [{"from": "2026-09-01", "to": "2026-09-13", "factor": 1.5}]
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units a day
+    hours = [0] * 24; hours[10] = 3600; hours[14] = 3600                                          # half at 10:00, half at 14:00
+    day = lambda: {"P": {"sec": 7200, "hours": hours, "msgs": 0, "sessions": [], "models": {"claude-opus-5": opus}}}
+    hist = {"days": {"2026-09-05": day(), "2026-09-12": day(), "2026-09-15": day()}}
+    cfg["observations"] = [
+        {"at": "2026-09-05 15:00", "pct": 5, "five_pct": 90, "five_reset": "2026-09-05 18:00"},    # Pro: not this plan
+        {"at": "2026-09-12 15:00", "pct": 5, "five_pct": 30, "five_reset": "2026-09-12 16:00"},    # 11:00-15:00: 12.5 units, x1.5 promo
+        {"at": "2026-09-15 15:00", "pct": 5, "five_pct": 10, "five_reset": "2026-09-15 19:00"},    # 14:00-15:00: 12.5 units
+        {"at": "2026-09-15 20:00", "pct": 6}]                                                       # no 5-hour reading
+    f = ur.calibrate_five(hist, cfg, ur.parse_local("2026-09-15 20:00", cfg))
+    assert abs(f["budget"] - (12.5 + 12.5) / (0.30 * 1.5 + 0.10)) < 0.05, f   # ~45.5 units, today's factor is 1
+    assert f["pct"] == 10 and f["reset"] == "2026-09-15 19:00" and f["at"] == "2026-09-15 15:00" and f["readings"] == 2, f
+    cfg["observations"] = [{"at": "2026-09-15 15:00", "pct": 5}]
+    assert ur.calibrate_five(hist, cfg, ur.parse_local("2026-09-15 20:00", cfg)) is None
 
 
 def test_refresh_button_only_on_local_page():

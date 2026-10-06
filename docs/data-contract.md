@@ -35,6 +35,8 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
          "ins": {                        // where the spend goes, in load units (tokens x weights)
            "units": 12.4, "ctx": {"lt50": 0.1, "50_100": 2.0, "100_150": 3.1, "gt150": 7.2},   // by the call's context size
            "effort": {"high": 200, "xhigh": 60},          // calls by effort level
+           "effort_units": {"high": 4.1, "xhigh": 2.9},   // load units of those calls
+           "effort_out": {"high": 310000, "xhigh": 150000},   // their output tokens, thinking included
            "side_units": 0.2,                             // of which subagents
            "cache_create_units": 2.6,                     // cache writes
            "skills": {"claude-api": 0.4},                 // re-reading a skill's text from cache
@@ -67,9 +69,13 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
     "calibrated": true,                  // is there a reading for the current plan
     "plan_now": "Max 5x",
     "budgets": {"Max 5x": {"all": 351.6, "fable": 164.6, "estimated": false}, "Pro": {…, "estimated": true}},
-    "observations": [{"at": "2026-09-12 05:50", "pct": 20, "fable_pct": 34}],
+    "observations": [{"at": "2026-09-12 05:50", "pct": 20, "fable_pct": 34,
+                      "five_pct": 74, "five_reset": "2026-09-12 07:40"}],   // the 5-hour window, when fetched
     "week_reset": "2026-09-17 20:00",    // or null (weeks start Monday)
-    "cloud_credit": {"limit": 250, "used": 1.38, "expires": "2026-11-05 10:59", "at": "2026-09-28 01:20"}  // or null
+    "cloud_credit": {"limit": 250, "used": 1.38, "expires": "2026-11-05 10:59", "at": "2026-09-28 01:20"},  // or null
+    "five_hour": {"budget": 130.3,       // one 5-hour window in load units (current plan, today's promo), pooled over readings
+                  "pct": 74, "reset": "2026-09-12 07:40", "at": "2026-09-12 05:50",   // the latest reading of it
+                  "readings": 3}         // or null: no 5-hour reading on the current plan yet
   },
   "idle_minutes": 10,
   "config_path": "~/.claude/usage-report/config.json",

@@ -103,8 +103,15 @@ def make_ins(rnd, cfg, models):
     s = sum(shares)
     for key, part in zip(("lt50", "50_100", "100_150", "gt150"), shares):
         ins["ctx"][key] = round(units * part / s, 3)
-    for effort, part in (("xhigh", 0.24), ("high", 0.55), ("medium", 0.17), ("low", 0.04)):
+    # effort: share of the calls, then what one call costs and writes against a call at high
+    levels = (("xhigh", 0.24, 1.13, 1.45), ("high", 0.50, 1.0, 1.0), ("medium", 0.12, 0.6, 0.56), ("low", 0.04, 0.7, 0.62), ("max", 0.10, 1.41, 2.21))
+    out = sum(m["output"] for m in models.values())
+    jit = {e: rnd.uniform(0.95, 1.05) for e, *_ in levels}
+    price, write = (sum(part * w[i] * jit[e] for e, part, *w in levels) for i in (0, 1))
+    for effort, part, pw, ow in levels:
         ins["effort"][effort] = int(calls * part)
+        ins["effort_units"][effort] = round(units * part * pw * jit[effort] / price, 3)
+        ins["effort_out"][effort] = int(out * part * ow * jit[effort] / write)
     ins["side_units"] = round(units * rnd.uniform(0.02, 0.09), 3)
     ins["cache_create_units"] = round(units * rnd.uniform(0.08, 0.18), 3)
     for skill in rnd.sample(SKILLS, rnd.randint(1, 3)):

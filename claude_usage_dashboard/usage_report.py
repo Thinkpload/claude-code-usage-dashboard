@@ -121,8 +121,10 @@ def load_json(path, default):
 
 def save_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf8") as f:
+    tmp = f"{path}.{os.getpid()}.tmp"   # temp file + rename: two runs at once (button + scheduler) used to interleave and corrupt the file
+    with open(tmp, "w", encoding="utf8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
 
 
 def load_config():
@@ -152,7 +154,7 @@ def group_of(name, cfg):
 def new_ins():
     """Where the spend goes, in load units: context size, effort, subagents, skills, cold starts."""
     return {"units": 0.0, "ctx": {"lt50": 0.0, "50_100": 0.0, "100_150": 0.0, "gt150": 0.0},
-            "effort": defaultdict(int), "side_units": 0.0, "cache_create_units": 0.0,
+            "effort": defaultdict(int), "effort_units": defaultdict(float), "effort_out": defaultdict(int), "side_units": 0.0, "cache_create_units": 0.0,
             "skills": defaultdict(float), "sessions": 0, "sessions_short": 0, "first_call_units": 0.0}
 
 
@@ -231,6 +233,8 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
                         ctx = tok["input"] + tok["cache_read"] + tok["cache_create"]
                         ins["ctx"]["lt50" if ctx < 50e3 else "50_100" if ctx < 100e3 else "100_150" if ctx < 150e3 else "gt150"] += units
                         ins["effort"][r.get("effort") or "?"] += 1
+                        ins["effort_units"][r.get("effort") or "?"] += units
+                        ins["effort_out"][r.get("effort") or "?"] += tok["output"]
                         ins["cache_create_units"] += tok["cache_create"] * w["cache_create"] / 1e6
                         if r.get("isSidechain"):
                             ins["side_units"] += units
@@ -269,6 +273,7 @@ def merge(history, fresh):
                 ins[k] = round(ins[k], 3)
             ins["ctx"] = {k: round(x, 3) for k, x in ins["ctx"].items()}
             ins["skills"] = {k: round(x, 3) for k, x in ins["skills"].items() if x >= 0.001}
+            ins["effort_units"] = {k: round(x, 3) for k, x in ins["effort_units"].items()}
             snap = {"sec": int(v["sec"]), "hours": [int(h) for h in v["hours"]], "msgs": v["msgs"],
                     "sessions": sorted(v["sessions"]), "models": models, "ins": ins}
             old = hd.get(name)
@@ -406,6 +411,29 @@ def calibrate(history, cfg):
     return out
 
 
+def calibrate_five(history, cfg, now):
+    """The 5-hour window in load units for the current plan, or None without a reading of it: the units spent since
+    each window opened (its reset minus 5 h) over the share /usage showed, pooled like the week's budget, promos
+    divided out and today's applied. Plus the latest reading, so the page knows how much of the open window is left."""
+    plan = plan_on(now.strftime("%Y-%m-%d"), cfg)
+    used = share = 0.0
+    last, n = None, 0
+    for o in cfg.get("observations", []):
+        if o.get("five_pct") is None or not o.get("five_reset"):
+            continue
+        last = o
+        t = parse_local(o.get("at") or o["date"], cfg)
+        u = units_between(history, parse_local(o["five_reset"], cfg) - timedelta(hours=5), t, cfg)
+        if plan_on(t.strftime("%Y-%m-%d"), cfg) == plan and o["five_pct"] > 0 and u > 0:
+            used += u
+            share += o["five_pct"] / 100.0 * (o.get("budget_factor") or boost_factor(t, cfg))
+            n += 1
+    if not share:
+        return None
+    return {"budget": round(used / share * boost_factor(now, cfg), 1), "pct": last["five_pct"], "reset": last["five_reset"],
+            "at": last.get("at"), "readings": n}
+
+
 def build_weeks(history, cfg, now):
     budgets = calibrate(history, cfg)
     days = sorted(history["days"])
@@ -527,7 +555,8 @@ def git_commits(cfg, since, project_names):
         name = by_norm.get(norm_name(os.path.basename(repo)), os.path.basename(repo))
         args = ["git", "-C", repo, "log", "--all", "--format=%aI", f"--since={since}"] + [f"--author={a}" for a in authors]
         try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=60, encoding="utf8", errors="replace")
+            res = subprocess.run(args, capture_output=True, text=True, timeout=60, encoding="utf8", errors="replace",
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # under pythonw (the refresh button) each git would open a console window
         except (OSError, subprocess.SubprocessError):
             continue
         for line in res.stdout.splitlines():
@@ -565,7 +594,7 @@ def build_data(history, cfg, now):
         "limits": {"calibrated": not budgets[plan_now]["estimated"], "plan_now": cfg["plans"][plan_now]["label"],
                    "budgets": {cfg["plans"][pl]["label"]: {k: (round(v, 1) if isinstance(v, float) else v) for k, v in b.items()} for pl, b in budgets.items()},
                    "observations": cfg.get("observations", []), "week_reset": cfg.get("week_reset"),
-                   "cloud_credit": cfg.get("cloud_credit")},
+                   "cloud_credit": cfg.get("cloud_credit"), "five_hour": calibrate_five(history, cfg, now)},
         "idle_minutes": cfg["idle_minutes"],
         "config_path": CONFIG_PATH,
         "refresh_url": REFRESH_URL if refresh_registered() else None,
@@ -724,10 +753,13 @@ def summary(data, days_back=30):
 
 
 def parse_usage(payload, cfg):
-    """The /usage endpoint's answer -> a reading {"pct", "fable_pct"} plus the week's reset moment in
-    local time, or (None, None) when there is no weekly limit in it."""
+    """The /usage endpoint's answer -> a reading {"pct", "fable_pct", "five_pct", "five_reset"} plus the week's
+    reset moment in local time, or (None, None) when there is no weekly limit in it."""
     obs, reset = {}, None
     for lim in payload.get("limits", []):
+        if lim.get("kind") == "session" and lim.get("percent") is not None and lim.get("resets_at"):   # the 5-hour window
+            obs["five_pct"] = lim["percent"]
+            obs["five_reset"] = parse_ts(lim["resets_at"], cfg).strftime("%Y-%m-%d %H:%M")
         if lim.get("group") != "weekly" or lim.get("percent") is None:
             continue
         model = ((lim.get("scope") or {}).get("model") or {}).get("display_name")
@@ -773,9 +805,11 @@ def fetch_usage(cfg):
 
 
 def record_observation(cfg, obs, now):
-    """Add a reading; a rerun within the hour replaces the last one instead of piling up entries."""
+    """Add a reading; a rerun within the hour replaces the last one instead of piling up entries, unless a new
+    5-hour window opened in between: the last reading of the one that closed is what sizes the window."""
     obs_list = cfg.setdefault("observations", [])
-    if obs_list and now - parse_local(obs_list[-1].get("at") or obs_list[-1]["date"], cfg) < timedelta(hours=1):
+    if (obs_list and now - parse_local(obs_list[-1].get("at") or obs_list[-1]["date"], cfg) < timedelta(hours=1)
+            and obs_list[-1].get("five_reset") in (None, obs.get("five_reset"))):
         obs_list[-1] = obs
     else:
         obs_list.append(obs)

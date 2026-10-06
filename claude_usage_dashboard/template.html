@@ -14,6 +14,7 @@
   --accent-2:#7fbbd4;                                                 /* ice */
   --s1:#e0a64a; --s2:#7fbbd4; --s3:#b4a992; --other:#46545a;          /* groups: brass / ice / hemp */
   --r1:#42768d; --r2:#5b9cb7; --r3:#86c1d9; --r4:#b6dbea;             /* ordinal: one hue, dark to light */
+  --e1:#2f5f73; --e2:#42819b; --e3:#5fa3bf; --e4:#8cc5dc; --e5:#c2e3f0; /* effort low -> max: faint to strong */
   --heat:#7fbbd4;
   --glow:rgba(224,166,74,.14);
   --ok:#7d9299; --warn:#e0a64a; --bad:#ec7157;                        /* calm / attention / alarm */
@@ -30,6 +31,7 @@
   --accent:#8a5d12; --accent-2:#1f6b88;
   --s1:#a06c12; --s2:#1f6b88; --s3:#8a8070; --other:#a7aeb1;
   --r1:#10394a; --r2:#1f6b88; --r3:#3d90ad; --r4:#4f96b3;
+  --e1:#7db4ca; --e2:#4f9ab8; --e3:#2f7f9f; --e4:#1a5d78; --e5:#0d3344;
   --heat:#1f6b88;
   --ok:#5d6f76; --warn:#8a5d12; --bad:#b2452c;
   --cold:#2f6580;
@@ -144,12 +146,16 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .track i.credit{background:var(--ok)}
 .track .due{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);
             box-shadow:0 0 0 1.5px var(--surface)}
+.track .h5{position:absolute;top:3px;bottom:3px;width:1.5px;margin-left:-.75px;background:var(--ink-2);opacity:.7}
+.track .wk{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--bg)}
 .w-keys{display:flex;flex-wrap:wrap;align-items:center;gap:5px 22px;margin:20px 0 0;font-size:13px;color:var(--muted)}
 .w-keys span{display:inline-flex;align-items:center;gap:8px}
 .w-keys i{flex:none}
 .w-keys .k-due{width:2px;height:12px;background:var(--ink)}
 .w-keys .k-sol{width:18px;height:0;border-top:2.5px solid var(--ink)}
 .w-keys .k-dsh{width:18px;height:0;border-top:2px dashed var(--ink-2)}
+.w-keys .k-h5{width:1.5px;height:9px;background:var(--ink-2);opacity:.7}
+.w-keys .k-wk{width:16px;height:8px;border-radius:2px;background:linear-gradient(90deg,var(--accent) 7px,var(--bg) 7px 9px,var(--accent) 9px)}
 .w-foot{margin:9px 0 0;font-size:13px;line-height:1.5;color:var(--muted);max-width:66ch}
 
 /* ============================================================
@@ -258,6 +264,38 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .advice .mini i{display:block;height:6px;border-radius:999px;background:var(--surface-2);position:relative}
 .advice .mini i::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--w);border-radius:999px;background:var(--fill,var(--accent))}
 .advice .mini span{text-align:right}
+/* effort: what one call costs at each level, and where the calls' share flows into the spend's */
+.eff{grid-column:1/-1;padding:0 0 22px;margin:0 0 4px;border-bottom:1px solid var(--hair)}
+.eff .eff-note{margin:-4px 0 12px;font-size:12.5px;color:var(--muted)}
+.eff-cards{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:2px}
+@media (max-width:760px){.eff-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ec{position:relative;display:grid;gap:4px;padding:14px 14px 12px;background:var(--surface-2);transition:opacity .15s}
+.ec .ec-m{position:relative;height:5px;margin:6px 0 9px;border-radius:999px;background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.ec .ec-m i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--c)}
+.ec .ec-m i.o{top:auto;bottom:-5px;height:2px;background:var(--ink-2);opacity:.75}
+.ec .ec-m s{position:absolute;top:-4px;bottom:-8px;width:1.5px;margin-left:-.75px;background:var(--ink);opacity:.6}
+.ec:first-child{border-radius:4px 0 0 4px}
+.ec:last-child{border-radius:0 4px 4px 0}
+.ec::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c)}
+.ec .ec-k{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.ec b{font-size:34px;font-weight:600;line-height:1;letter-spacing:-.025em;color:var(--ink)}
+.ec.base b{color:var(--ink-2)}
+.ec .ec-s{font-size:12px;line-height:1.4;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ec.few b{color:var(--muted)}
+.ec .ec-s em{font-style:normal;color:var(--muted)}
+.ec:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:1}
+.eff-flow{display:grid;grid-template-columns:auto 1fr;gap:10px;margin:10px 0 0}
+.eff-flow .ef-l{display:flex;flex-direction:column;justify-content:space-between;font-family:var(--mono);font-size:10.5px;line-height:9px;color:var(--muted)}
+.eff-flow svg{display:block;width:100%;height:64px;overflow:visible}
+.eff-flow .rib{opacity:.5;transition:opacity .15s}
+.eff-flow .seg{transition:opacity .15s}
+.eff.dim .rib{opacity:.07}
+.eff.dim .rib.on{opacity:.8}
+.eff.dim .seg{opacity:.3}
+.eff.dim .seg.on{opacity:1}
+.eff.dim .ec{opacity:.55}
+.eff.dim .ec.on{opacity:1}
+.advice li .mini{margin:10px 0 0}
 .advice ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:12px}
 .advice li{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:13px;line-height:1.45}
 .advice li .tag{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);height:fit-content;white-space:nowrap}
@@ -543,6 +581,21 @@ const DATA = /*__DATA__*/null;
     const when = diff === 0 ? 'today' : diff === 1 ? 'tomorrow' : diff === 2 ? 'the day after tomorrow' : DOW_WHEN[(d.getDay() + 6) % 7];
     return `${when} around ${hhmm(d)}`;
   }
+  // the limit weeks of a paid month: each with the moment it opens and the share of it that falls in the month
+  function monthWeeks(bm) {
+    const ms = parseAt(bm.start + ' 00:00'), me = parseAt(addDays(bm.end, 1) + ' 00:00');
+    return DATA.weeks.map((w) => {
+      const a = parseAt(w.start_at || (w.start + ' 00:00')), b = new Date(+a + 7 * 864e5);
+      return { w, a, share: Math.max(0, Math.min(b, me) - Math.max(a, ms)) / (7 * 864e5) };
+    }).filter((x) => x.share > 0);
+  }
+  // the 5-hour window against a week: its size in % of the week, whether one is open, how many still open before the reset
+  function fiveHour(cur, now, reset) {
+    const f5 = DATA.limits.five_hour;
+    if (!f5 || cur.pct == null || !cur.budget) return null;
+    const open = parseAt(f5.reset) > now;
+    return { ...f5, step: 100 * f5.budget / cur.budget, open, fit: (open ? 1 : 0) + Math.floor(Math.max(0, reset - (open ? parseAt(f5.reset) : now)) / 18e6) };
+  }
   function weekInstrument() {
     const host = $('week');
     const cur = DATA.weeks[DATA.weeks.length - 1];
@@ -591,7 +644,7 @@ const DATA = /*__DATA__*/null;
     }
 
     const due = ru(plan * 100, 1).replace(',', '.');
-    const rail = (id, label, pct, units, budget, thin) =>
+    const rail = (id, label, pct, units, budget, thin, marks = '') =>
       `<div class="rail" id="${id}">
          <div class="rail-head">
            <span class="cap">${label}, ${budget != null ? `<b>${ru(units, 0)}</b> of <b>${ru(budget, 0)}</b> units` : `<b>${ru(units, 0)}</b> units against an unknown budget`}</span>
@@ -599,9 +652,14 @@ const DATA = /*__DATA__*/null;
          </div>
          <div class="track${thin ? ' thin' : ''}">
            <i class="${thin ? 'alt' : ''}${(pct ?? 0) >= 100 ? ' full' : ''}" style="width:${Math.min(100, pct ?? 0)}%"></i>
-           <b class="due" style="left:${due}%"></b>
+           <b class="due" style="left:${due}%"></b>${marks}
          </div>
        </div>`;
+
+    // 5-hour windows on the week's scale: where the rest of the open window takes you, then each full window after it,
+    // as many as still open before the reset
+    const f5 = known ? fiveHour(cur, now, reset) : null, f5ticks = [];
+    for (let x = (cur.pct ?? 0) + (f5 && f5.open ? 1 - f5.pct / 100 : 1) * (f5 ? f5.step : 0); f5 && x < 100 && f5ticks.length < f5.fit; x += f5.step) f5ticks.push(x);
 
     // the cloud session credit: a dollar pot of its own that burns out on a date, so no "due now" mark
     const cc = DATA.limits.cloud_credit, ccEnd = cc && cc.expires ? parseAt(cc.expires) : null;
@@ -620,13 +678,16 @@ const DATA = /*__DATA__*/null;
     const bmOn = bm && bm.partial && bm.pct != null;
     const bmStart = bmOn && parseAt(bm.start + ' 00:00'), bmEnd = bmOn && parseAt(addDays(bm.end, 1) + ' 00:00');
     const bmDue = bmOn ? Math.max(0, Math.min(1, (now - bmStart) / (bmEnd - bmStart))) : 0;
+    // the limit weeks of the month: notches where one ends and the next begins, each one's share of its own limit in the tip
+    const mWeeks = bmOn ? monthWeeks(bm) : [];
+    const bmNotches = mWeeks.filter((x) => x.a > bmStart).map((x) => `<b class="wk" style="left:${(100 * (x.a - bmStart) / (bmEnd - bmStart)).toFixed(1)}%"></b>`).join('');
     const bmRail = !bmOn ? '' :
       `<div class="rail" id="rail-month">
          <div class="rail-head">
            <span class="cap">Paid month ${fmtSpan(bm)}, <b>${ru(bm.budget_units, 0)}</b> of <b>${ru(bm.budget, 0)}</b> units</span>
            <span class="pct">${ru(bm.pct, 0)} %</span>
          </div>
-         <div class="track thin"><i class="${bm.pct >= 100 ? 'full' : ''}" style="width:${Math.min(100, bm.pct)}%"></i><b class="due" style="left:${(100 * bmDue).toFixed(1)}%"></b></div>
+         <div class="track thin"><i class="${bm.pct >= 100 ? 'full' : ''}" style="width:${Math.min(100, bm.pct)}%"></i>${bmNotches}<b class="due" style="left:${(100 * bmDue).toFixed(1)}%"></b></div>
        </div>`;
 
     const boost = cur.boost > 1 ? ` This week's budget is raised by a promo of ${ru((cur.boost - 1) * 100, 0)} %.` : '';
@@ -636,21 +697,23 @@ const DATA = /*__DATA__*/null;
          <p class="w-call">${call}</p>
          <p class="w-line">${line}</p>
          <div class="w-rails">
-           ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false)}
+           ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false, f5ticks.map((x) => `<b class="h5" style="left:${x.toFixed(1)}%"></b>`).join(''))}
            ${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}
            ${bmRail}
            ${ccRail}
          </div>
          <p class="w-keys"><span><i class="k-due"></i>where you should be now</span>
-            <span><i class="k-sol"></i>all models</span><span><i class="k-dsh"></i>Fable</span></p>
+            <span><i class="k-sol"></i>all models</span><span><i class="k-dsh"></i>Fable</span>${f5ticks.length ? '<span><i class="k-h5"></i>one more 5-hour window</span>' : ''}${bmNotches ? '<span><i class="k-wk"></i>limit weeks of the month</span>' : ''}</p>
          <p class="w-foot">${cur.plan_label}, week ${fmtDate(cur.start)}–${fmtDate(cur.end)}, reset ${DOW_WHEN[(reset.getDay() + 6) % 7]} ${fmtDate(cur.end)}, ${hhmm(reset)}.${boost}</p>
        </div>`;
 
     paceDial($('dial'), { k, kF });
     if (k != null) bindTip($('dial'), `<b>Pace gauge</b> - actual ÷ plan<br><span class="k">plan for this hour</span> ${ru(plan * 100, 0)} %${prof ? '' : ' (linear: too little history for a profile)'}<br><span class="k">all models</span> ${ru(cur.pct, 0)} % → ×${ru(k, 2)}${kF != null ? `<br><span class="k">Fable</span> ${ru(cur.fable_pct, 0)} % → ×${ru(kF, 2)}` : ''}`);
-    if (known) bindTip($('rail-all'), `<b>All models</b><br>${ru(cur.units, 0)} of ${ru(cur.budget, 0)} units - ${ru(cur.pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %<br><span class="k">time elapsed</span> ${ru(100 * (now - start) / span, 0)} %`);
+    if (known) bindTip($('rail-all'), `<b>All models</b><br>${ru(cur.units, 0)} of ${ru(cur.budget, 0)} units - ${ru(cur.pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %<br><span class="k">time elapsed</span> ${ru(100 * (now - start) / span, 0)} %` +
+      (f5 ? `<br><span class="k">5-hour window</span> ≈ ${ru(f5.budget, 0)} units = ${ru(f5.step, 1)} % of the week<br><span class="k">open window</span> ${f5.open ? `${ru(f5.pct, 0)} % used, resets ${hhmm(parseAt(f5.reset))}` : 'none, the next one opens with the first message'}<br>The ticks: where the rest of the open window takes you, then each full window after it, as many as open before the reset. Sized from ${f5.readings} /usage readings of the 5-hour limit.` : ''));
     if (ccOn) bindTip($('rail-credit'), `<b>Cloud session credit</b><br>$${ru(cc.used, 2)} of $${ru(cc.limit, 0)} spent · $${ru(ccLeft, 2)} left${ccEnd ? `<br><span class="k">burns out</span> ${fmtDate(cc.expires.slice(0, 10))}, ${hhmm(ccEnd)} · in ${dur(ccEnd - now)}<br><span class="k">to use it up</span> ~$${ru(ccLeft / Math.max(1, (ccEnd - now) / 864e5), 0)} a day` : ''}<br><span class="k">as of</span> ${cc.at}<br>Pays for cloud sessions first: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines (/schedule). Once it is spent or burns out, cloud sessions draw on the plan limit again.`);
-    if (bmOn) bindTip($('rail-month'), `<b>Paid month ${fmtSpan(bm)}</b><br>${ru(bm.budget_units, 0)} of ${ru(bm.budget, 0)} units - ${ru(bm.pct, 0)} %<br><span class="k">month gone by</span> ${ru(100 * bmDue, 0)} %<br><span class="k">left</span> ${dur(Math.max(0, bmEnd - now))} · up to ${ru(Math.max(0, bm.budget - bm.budget_units), 0)} units<br>The most the limit allows in the month: each week’s budget for its days in it, the days still ahead at this week’s budget.`);
+    if (bmOn) bindTip($('rail-month'), `<b>Paid month ${fmtSpan(bm)}</b><br>${ru(bm.budget_units, 0)} of ${ru(bm.budget, 0)} units - ${ru(bm.pct, 0)} %<br><span class="k">month gone by</span> ${ru(100 * bmDue, 0)} %<br><span class="k">left</span> ${dur(Math.max(0, bmEnd - now))} · up to ${ru(Math.max(0, bm.budget - bm.budget_units), 0)} units<br>The most the limit allows in the month: each week’s budget for its days in it, the days still ahead at this week’s budget.` +
+      mWeeks.map((x) => `<br><span class="k">${fmtSpan(x.w)}</span> ${x.w.pct == null ? '—' : ru(x.w.pct, 0) + ' %'}${x.w.partial ? ' so far' : ''}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d in the month` : ''}`).join(''));
     if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
   }
 
@@ -917,11 +980,70 @@ const DATA = /*__DATA__*/null;
     const calls = Object.values(I.effort).reduce((a, b) => a + b, 0);
     const skillTop = Object.entries(I.skills).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const skillAll = Object.values(I.skills).reduce((a, b) => a + b, 0);
-    const mini = (title, rows, fill) => `<h3>${title}</h3><div class="mini">` + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${pct(v, of).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
+    const bars = (rows, fill) => '<div class="mini">' + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${Math.min(100, pct(v, of)).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
+    const mini = (title, rows, fill) => `<h3>${title}</h3>` + bars(rows, fill);
+    let effortTips = () => {};
+    // effort: what one call costs at each level against a call at high (everything it costs against the limit), how much
+    // it writes (output, thinking included - effort's own footprint), and how its share of the calls flows into the spend
+    const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+    const E = {}; let eDays = 0;
+    for (const day of A.days) {
+      let has = false;
+      for (const v of Object.values(day.p)) {
+        const x = v.ins; if (!x || !x.effort_units || !x.effort_out) continue;
+        has = true;
+        for (const [k, n] of Object.entries(x.effort || {})) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).calls += n;
+        for (const [k, u] of Object.entries(x.effort_units)) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).units += u;
+        for (const [k, o] of Object.entries(x.effort_out)) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).out += o;
+      }
+      eDays += has;
+    }
+    const lv = LEVELS.filter((k) => E[k] && E[k].calls).concat(Object.keys(E).filter((k) => !LEVELS.includes(k) && k !== '?' && E[k].calls));
+    const unmarked = E['?'] ? E['?'].calls : 0;
+    let effortBlock = mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)');
+    if (lv.length >= 2) {
+      const eC = lv.reduce((s, k) => s + E[k].calls, 0), eU = lv.reduce((s, k) => s + E[k].units, 0);
+      const baseK = E.high && E.high.calls ? 'high' : null;
+      const b = baseK ? E.high : { calls: eC, units: eU, out: lv.reduce((s, k) => s + E[k].out, 0) };
+      const cost = (k) => (E[k].units / E[k].calls) / (b.units / b.calls), outk = (k) => (E[k].out / E[k].calls) / (b.out / b.calls);
+      const col = (k) => { const i = LEVELS.indexOf(k); return i < 0 ? 'var(--other)' : `var(--e${i + 1})`; };
+      // the flow: calls on top, spend below, one band per level, a 2-unit surface gap between segments
+      const W = 1000, T = 8, B = 56, H = 64;
+      let cx = 0, ux = 0;
+      const flow = lv.map((k) => {
+        const cw = W * E[k].calls / eC, uw = W * E[k].units / eU;
+        const g = (w) => Math.min(1, w / 4);
+        const [c0, c1, u0, u1] = [cx + g(cw), cx + cw - g(cw), ux + g(uw), ux + uw - g(uw)];
+        cx += cw; ux += uw;
+        const m = (T + B) / 2;
+        return `<g data-k="${k}"><path class="rib" fill="${col(k)}" d="M${c0} ${T}C${c0} ${m} ${u0} ${m} ${u0} ${B}L${u1} ${B}C${u1} ${m} ${c1} ${m} ${c1} ${T}Z"/>` +
+          `<rect class="seg" fill="${col(k)}" x="${c0}" y="0" width="${Math.max(0.6, c1 - c0)}" height="${T}"/><rect class="seg" fill="${col(k)}" x="${u0}" y="${B}" width="${Math.max(0.6, u1 - u0)}" height="${H - B}"/></g>`;
+      }).join('');
+      const top = Math.ceil(2 * Math.max(1.5, ...lv.map((k) => Math.max(cost(k), outk(k))))) / 2, at = (x) => (100 * Math.min(x, top) / top).toFixed(1) + '%';
+      effortBlock = `<section class="eff" id="eff"><h3 id="h-effort">Effort: the price of one call against ${baseK || 'the average one'}${eDays < A.days.length ? ` · ${eDays} of ${A.days.length} d` : ''}</h3>
+        <p class="eff-note">Priced from your own logs: Anthropic does not publish what an effort level costs. Bar = price, line = output, tick = ×1.</p><div class="eff-cards" style="--n:${lv.length}">` +
+        lv.map((k) => `<div class="ec${k === baseK ? ' base' : ''}${E[k].calls < 200 ? ' few' : ''}" data-k="${k}" tabindex="0" style="--c:${col(k)}"><span class="ec-k">${k}${E[k].calls < 200 ? ` · too few calls (${ru(E[k].calls)})` : ''}</span><b>×${ru(cost(k), 2)}</b>` +
+          `<span class="ec-m"><i style="width:${at(cost(k))}"></i><i class="o" style="width:${at(outk(k))}"></i><s style="left:${at(1)}"></s></span>` +
+          `<span class="ec-s"><em>output</em> ×${ru(outk(k), 2)}</span><span class="ec-s"><em>calls</em> ${ru(100 * E[k].calls / eC, 0)} % → <em>spend</em> ${ru(100 * E[k].units / eU, 0)} %</span></div>`).join('') +
+        `</div><div class="eff-flow"><div class="ef-l"><span>calls</span><span>spend</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${flow}</svg></div></section>`;
+      effortTips = () => {
+        const host = $('eff'); if (!host) return;
+        const on = (k) => { host.classList.toggle('dim', !!k); host.querySelectorAll('[data-k]').forEach((n) => n.classList.toggle('on', n.dataset.k === k)); host.querySelectorAll('g[data-k] > *').forEach((n) => n.classList.toggle('on', n.parentNode.dataset.k === k)); };
+        host.querySelectorAll('.ec, g[data-k]').forEach((n) => {
+          const k = n.dataset.k, e = E[k];
+          n.addEventListener('mouseenter', () => on(k)); n.addEventListener('focus', () => on(k));
+          n.addEventListener('mouseleave', () => on(null)); n.addEventListener('blur', () => on(null));
+          bindTip(n, `<b>${k}</b><br><span class="k">calls</span> ${ru(e.calls)} · ${ru(100 * e.calls / eC, 1)} %<br><span class="k">spend</span> ${ru(e.units, 1)} units · ${ru(100 * e.units / eU, 1)} %` +
+            `<br><span class="k">one call</span> ${ru(e.units / e.calls, 3)} units, ${ru(e.out / e.calls)} output tokens` +
+            `<br><span class="k">against ${baseK || 'the average'}</span> price ×${ru(cost(k), 2)}, output ×${ru(outk(k), 2)}`);
+        });
+        bindTip($('h-effort'), `<b>Effort, priced from your own logs</b><br><span class="k">×price</span> load units of one call against a call at ${baseK || 'the average'}: all it costs against the limit - context read from cache, cache writes, output<br><span class="k">×output</span> tokens it writes, thinking included - what the effort level itself changes<br>The price also carries what tends to run at that level (long contexts, Fable); the output does not.<br><span class="k">the bands</span> each level's share of the calls (top) flowing into its share of the spend (bottom): a band that widens costs more than its share` +
+          (unmarked ? `<br>${ru(unmarked)} calls with no effort mark are left out.` : '') + (eDays < A.days.length ? `<br>Counted over ${eDays} of ${A.days.length} days: older logs kept only the number of calls.` : ''));
+      };
+    }
     const left = document.createElement('div');
     left.innerHTML =
       mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['over 150k', I.ctx.gt150, I.units]], 'var(--r2)') +
-      mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)') +
       mini('Spend by model', Object.entries(modelUnits).filter(([, u]) => u > 0).sort((a, b) => b[1] - a[1]).map(([m, u]) => [modelLabel(m), u, modelTotal]), 'var(--s1)') +
       (skillTop.some(([, u]) => pct(u, I.units) >= 0.5) ? mini('Skill text in context', skillTop.filter(([, u]) => pct(u, I.units) >= 0.5).map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');   // rows that round to 0 % are noise
     const tips = [];
@@ -947,6 +1069,32 @@ const DATA = /*__DATA__*/null;
         avg > 85 ? `The weekly limit is on the edge: on average ${ru(avg, 0)} %` : `Leaving ${ru(100 - avg, 0)} % ≈ ${ru(spareH, 0)} h of work a week`,
         avg > 85 ? 'The advice above buys headroom faster than a bigger plan does.' : `Paid for and left unburnt: ${ru(spareU, 0)} units a week at a pace of ${ru(uph, 1)} units/h. There is nothing to save here: reach for Fable and subagents on the hard problems. At this pace optimisation is about speed and quality, not quota.`]);
     }
+    // the paid month in view (or the running one): its weeks against their own limit, what burned out, whether the plan fits
+    const bm = DATA.billing_months.find((b) => b.start === current.from) || DATA.billing_months[DATA.billing_months.length - 1];
+    const mw = bm ? monthWeeks(bm).filter((x) => x.w.pct != null) : [], mDone = mw.filter((x) => !x.w.partial);
+    const mAvg = mDone.length ? mDone.reduce((s, x) => s + x.w.pct * x.share, 0) / mDone.reduce((s, x) => s + x.share, 0) : null;
+    if (mDone.length) {
+      const lost = mDone.reduce((s, x) => s + Math.max(0, x.w.budget - x.w.units) * x.share, 0);
+      const worst = mDone.reduce((m, x) => (x.w.pct < m.w.pct ? x : m));
+      const hot = mDone.filter((x) => x.w.pct >= 95).length, ceiling = mAvg >= 90 || hot >= 2, roomy = mAvg < 40;
+      tips.push([ceiling ? 'warn' : roomy ? 'info' : 'ok',
+        ceiling ? `The plan is at its ceiling: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
+          : roomy ? `The plan is roomy: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
+          : `The plan fits: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`,
+        (lost < 1 ? 'Nothing burned out: every finished week ran to its limit.'
+          : `Burned out ~<b>${ru(lost, 0)} units</b> of weekly limits, <b>${ru(100 * lost / bm.budget, 0)} %</b> of the month; the most in ${fmtSpan(worst.w)}, used ${ru(worst.w.pct, 0)} %.`) +
+        (hot ? ` Weeks near 100 %: ${hot}.` : '') +
+        (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : ''),
+        bars(mw.map((x) => [fmtSpan(x.w) + (x.w.partial ? ' …' : ''), x.w.pct, 100]).concat([['on average', mAvg, 100]]), 'var(--accent)')]);
+    }
+    // this week: how much is left to take before the reset, in units and in 5-hour windows
+    const cw = DATA.weeks[DATA.weeks.length - 1];
+    if (cw && cw.partial && cw.pct != null && cw.pct < 100) {
+      const now = parseAt(DATA.generated), reset = new Date(+parseAt(cw.start_at || (cw.start + ' 00:00')) + 7 * 864e5), f5 = fiveHour(cw, now, reset);
+      const need = Math.max(0, cw.budget - cw.units), days = Math.max(1 / 24, (reset - now) / 864e5);
+      tips.push(['info', `This week: another ${ru(need, 0)} units to land on 100 % by the reset in ${dur(reset - now)}`,
+        `~${ru(need / days, 0)} units a day` + (f5 ? `, ≈ <b>${ru(need / f5.budget, 1)}</b> full 5-hour windows of the ${f5.fit} still ahead` : '') + '. Whatever is left at the reset burns out.']);
+    }
     const cc = DATA.limits.cloud_credit, ccEnd = cc && cc.expires ? parseAt(cc.expires) : null, ccNow = parseAt(DATA.generated);
     if (cc && cc.limit - cc.used >= 1 && (!ccEnd || ccEnd > ccNow)) {
       const ccLeft = cc.limit - cc.used, ccDays = ccEnd ? Math.max(1, Math.round((ccEnd - ccNow) / 864e5)) : null;
@@ -955,8 +1103,10 @@ const DATA = /*__DATA__*/null;
         `Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`]);
     }
     const right = document.createElement('ol');
-    right.innerHTML = tips.map(([kind, head, how]) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span></div></li>`).join('');
+    right.innerHTML = tips.map(([kind, head, how, extra = '']) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span>${extra}</div></li>`).join('');
+    if (effortBlock.startsWith('<section')) c.insertAdjacentHTML('beforeend', effortBlock); else left.insertAdjacentHTML('afterbegin', effortBlock);
     c.appendChild(left); c.appendChild(right);
+    effortTips();
   }
 
   // ---------- projects table ----------
