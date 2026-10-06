@@ -381,30 +381,45 @@ def boost_factor(t, cfg):
     return 1.0
 
 
+def fit_fable_load(rows):
+    """One plan's readings [(units, Fable units, share of the limit)] -> (k, budget in load units). The weights are API
+    prices, and the weekly limit prices Fable steeper than they do: per unit Fable loads it k times as hard as the other
+    models, so the limit counts load units = units + (k - 1) x Fable units. k is the one on a 0.5..4 grid that makes the
+    readings agree best with one budget; it stays 1 below four readings or when it cuts their squared error by less
+    than a quarter, so a handful of readings, or ones with the same Fable share, do not make a factor up."""
+    def fit(k):
+        load = [u + (k - 1) * uf for u, uf, _ in rows]
+        # a pooled ratio: early-week readings (1-3 %, rounded to whole percent) weigh by their size, not equally
+        budget = sum(load) / sum(s for _, _, s in rows)
+        # the error in shares of the limit, not in units: a load unit grows with k, and the readings round to whole percent
+        return sum((x / budget - s) ** 2 for x, (_, _, s) in zip(load, rows)), k, budget
+    base, best = fit(1.0), min(fit(i / 20) for i in range(10, 81))
+    return best[1:] if len(rows) >= 4 and best[0] < 0.75 * base[0] else base[1:]
+
+
 def calibrate(history, cfg):
-    """Per-plan budgets: {plan: {"all": units, "fable": units|None, "estimated": bool}}.
+    """Per-plan budgets: {plan: {"all": load units, "fable": units|None, "fable_load": k, "estimated": bool}}.
     A plan's own /usage readings calibrate it; otherwise it is scaled from a calibrated plan by
     ratio (an estimate); with no readings at all, the factory guess."""
-    bases = defaultdict(lambda: {"all": [0.0, 0.0], "fable": [0.0, 0.0]})   # [sum of units, sum of budget shares]
+    rows = defaultdict(list)                       # plan -> [(units, Fable units, share of the limit)], one per reading
+    fable = defaultdict(lambda: [0.0, 0.0])        # plan -> [sum of Fable units, sum of Fable budget shares]
     for o in cfg.get("observations", []):
         t = parse_local(o.get("at") or o["date"], cfg)
         ws = window_start(t, cfg)
         plan = plan_on(t.strftime("%Y-%m-%d"), cfg)
         factor = o.get("budget_factor") or boost_factor(t, cfg)
         used = units_between(history, ws, t, cfg)
-        if o.get("pct", 0) > 0 and used > 0:
-            bases[plan]["all"][0] += used
-            bases[plan]["all"][1] += o["pct"] / 100.0 * factor
         used_f = units_between(history, ws, t, cfg, FABLE)
+        if o.get("pct", 0) > 0 and used > 0:
+            rows[plan].append((used, used_f, o["pct"] / 100.0 * factor))
         if o.get("fable_pct", 0) > 0 and used_f > 0:
-            bases[plan]["fable"][0] += used_f
-            bases[plan]["fable"][1] += o["fable_pct"] / 100.0 * factor
-    # a pooled ratio: early-week readings (1-3 %, rounded to whole percent) weigh by their size, not equally
-    ratio = lambda acc: acc[0] / acc[1] if acc[1] else None
+            fable[plan][0] += used_f
+            fable[plan][1] += o["fable_pct"] / 100.0 * factor
     out = {}
-    for plan, pc in cfg["plans"].items():
-        b = bases.get(plan, {"all": [0.0, 0.0], "fable": [0.0, 0.0]})
-        out[plan] = {"all": ratio(b["all"]), "fable": ratio(b["fable"]), "estimated": not b["all"][1]}
+    for plan in cfg["plans"]:
+        k, budget = fit_fable_load(rows[plan]) if rows[plan] else (1.0, None)
+        f = fable[plan]
+        out[plan] = {"all": budget, "fable": f[0] / f[1] if f[1] else None, "fable_load": k, "estimated": not rows[plan]}
     ref = next((pl for pl in out if out[pl]["all"]), None)
     for plan, v in out.items():
         if v["all"] is None:
@@ -412,6 +427,7 @@ def calibrate(history, cfg):
                 r = cfg["plans"][plan]["ratio"] / cfg["plans"][ref]["ratio"]
                 v["all"] = out[ref]["all"] * r
                 v["fable"] = out[ref]["fable"] * r if out[ref]["fable"] else None
+                v["fable_load"] = out[ref]["fable_load"]
             else:
                 v["all"] = float(cfg["factory_weekly_units_pro"]) * cfg["plans"][plan]["ratio"]
     return out
@@ -455,6 +471,7 @@ def build_weeks(history, cfg, now):
         b = budgets[plan]
         f = boost_factor(upto, cfg)  # the factor in effect at the window's end: a limit change applies mid-week, like the plan
         used, used_f = units_between(history, ws, upto, cfg), units_between(history, ws, upto, cfg, FABLE)
+        k = b["fable_load"]  # the limit counts load units, Fable at k (see fit_fable_load)
         known = not b["estimated"]  # without a reading of its own we draw no percentage: scaling by ratio does not hold up
         budget = b["all"] * f if known else None
         fbudget = b["fable"] * f if known and b["fable"] else None
@@ -466,15 +483,19 @@ def build_weeks(history, cfg, now):
                 continue
             u, uf = units_between(history, ws, t, cfg), units_between(history, ws, t, cfg, FABLE)
             if o.get("pct", 0) > 0 and u > 0:
-                budget = u / (o["pct"] / 100.0)
+                budget = (u + (k - 1) * uf) / (o["pct"] / 100.0)
             if o.get("fable_pct", 0) > 0 and uf > 0:
                 fbudget = uf / (o["fable_pct"] / 100.0)
+        load = used + (k - 1) * used_f
+        pct = 100 * load / budget if budget else None
+        if budget and load:
+            budget *= used / load  # back to plain units at the week's own model mix, so units of budget reads as the pct
         weeks.append({"start": ws.strftime("%Y-%m-%d"), "end": (we - timedelta(minutes=1)).strftime("%Y-%m-%d"),
                       "start_at": ws.strftime("%Y-%m-%d %H:%M"), "plan": plan, "plan_label": cfg["plans"][plan]["label"],
                       "units": round(used, 2), "budget": round(budget, 2) if budget else None,
-                      "pct": round(100 * used / budget, 1) if budget else None,
+                      "pct": round(pct, 1) if budget else None,
                       "fable_units": round(used_f, 2), "fable_budget": round(fbudget, 2) if fbudget else None,
-                      "fable_pct": round(100 * used_f / fbudget, 1) if fbudget else None,
+                      "fable_pct": round(100 * used_f / fbudget, 1) if fbudget else None, "fable_load": k,
                       "boost": f, "estimated": not known, "partial": we > now})
         ws = we
     peak = max((w["units"] for w in weeks), default=0)  # drop the run of empty weeks at the start
@@ -506,7 +527,7 @@ def build_billing_months(history, weeks, cfg, now):
     for s in sorted({billing_start(date.fromisoformat(d), day) for d in history["days"]}):
         e = billing_start(s + timedelta(days=31), day)
         ms, me = (datetime(x.year, x.month, x.day, tzinfo=tz(cfg)) for x in (s, e))
-        used = budget = 0.0
+        used = load = budget = 0.0
         covered = timedelta(0)
         for i, w in enumerate(weeks):
             ws = parse_local(w["start_at"], cfg)
@@ -516,12 +537,19 @@ def build_billing_months(history, weeks, cfg, now):
                 continue
             share = (b - a) / timedelta(days=7)
             covered += b - a
-            used += units_between(history, a, min(b, now), cfg)
-            budget += w["budget"] * share
+            k, u = w["fable_load"], units_between(history, a, min(b, now), cfg)
+            used += u
+            load += u + (k - 1) * units_between(history, a, min(b, now), cfg, FABLE)
+            # in load units, like the week (see build_weeks): a slice whose model mix differs from its week's weighs right
+            wl = w["units"] + (k - 1) * w["fable_units"]
+            budget += w["budget"] * (wl / w["units"] if w["units"] else 1) * share
+        pct = 100 * load / budget if budget else None
+        if budget and load:
+            budget *= used / load  # back to plain units at the month's own model mix, as for a week
         units = sum(day_units(history, d, cfg) for d in history["days"] if s.isoformat() <= d < e.isoformat())
         out.append({"start": s.isoformat(), "end": (e - timedelta(days=1)).isoformat(), "units": round(units, 1),
                     "budget": round(budget, 1) if budget else None, "budget_units": round(used, 1),
-                    "pct": round(100 * used / budget, 1) if budget else None,
+                    "pct": round(pct, 1) if budget else None,
                     "covered_days": round(covered / timedelta(days=1), 1), "days": (e - s).days, "partial": me > now})
     return out
 

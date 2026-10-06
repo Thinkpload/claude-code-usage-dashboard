@@ -230,6 +230,46 @@ def test_week_with_its_own_reading_follows_it():
     assert cur["pct"] == round(75 / 2000 * 100, 1), cur                                       # 2.5 % at the reading + one more day
 
 
+def test_fable_load_is_fitted_to_the_readings():
+    """The weights are API prices, and the weekly limit prices Fable steeper than they do: per unit Fable loads it
+    k times as hard as the other models. k comes from the readings, and a week counts in load units, so a week that
+    went from Fable to Opus after its last reading does not carry the Fable-heavy rate into its Opus-only days."""
+    cfg = dict(CFG)
+    cfg["plan_history"] = [{"from": "2026-01-01", "plan": "max5"}]
+    cfg["week_reset"] = "2026-09-17 20:00"
+    cfg["boosts"] = []
+    opus = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}   # 25 units
+    fable = {"input": 0, "cache_create": 0, "cache_read": 0, "output": 1_000_000, "thinking": 0}  # 50 units, a load of 100 at k = 2
+    hours = [0] * 24; hours[10] = 3600
+    day = lambda models: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": models}}
+    mixed = {"claude-opus-5": opus, "claude-fable-5-1": fable}                                    # 75 units, a load of 125
+    hist = {"days": {"2026-09-11": day({"claude-opus-5": opus}), "2026-09-12": day({"claude-opus-5": opus}),
+                     "2026-09-13": day({"claude-opus-5": opus}), "2026-09-18": day(mixed), "2026-09-19": day(mixed),
+                     "2026-09-21": day({"claude-opus-5": opus}), "2026-09-22": day({"claude-opus-5": opus})}}
+    # a limit of 1000 load units: the Opus week reads 2.5 and 7.5 %, the mixed one 12.5 and 25 %
+    cfg["observations"] = [{"at": "2026-09-11 12:00", "pct": 2.5}, {"at": "2026-09-13 12:00", "pct": 7.5},
+                           {"at": "2026-09-18 12:00", "pct": 12.5}, {"at": "2026-09-19 12:00", "pct": 25}]
+    b = ur.calibrate(hist, cfg)["max5"]
+    assert b["fable_load"] == 2 and abs(b["all"] - 1000) < 1e-6, b
+    weeks, _ = ur.build_weeks(hist, cfg, ur.parse_local("2026-09-25 12:00", cfg))
+    opus_week, mixed_week = weeks[-3], weeks[-2]
+    assert opus_week["pct"] == 7.5 and opus_week["budget"] == 1000, opus_week
+    # 250 load units at 25 %, then 50 of Opus: 30 %, not the 200 / 600 = 33.3 % of the week's Fable-heavy start
+    assert mixed_week["pct"] == 30 and mixed_week["units"] == 200, mixed_week
+    assert abs(mixed_week["budget"] - 200 / 0.3) < 0.01, mixed_week                             # in units at the week's mix: units / budget = pct
+    # the paid month (the 1st to the 30th) counts in load units too: 75 + 300 of them against two full weeks and the
+    # running one's 148 h in September at 1000, not the units against budgets taken at each week's own mix
+    sep = ur.build_billing_months(hist, weeks, cfg, ur.parse_local("2026-09-25 12:00", cfg))[0]
+    assert sep["pct"] == round(100 * 375 / (2000 + 1000 * 148 / 168), 1) and sep["budget_units"] == 275, sep
+    # three readings are too few to tell Fable's weight from noise: k stays at the API prices
+    cfg["observations"] = cfg["observations"][1:]
+    assert ur.calibrate(hist, cfg)["max5"]["fable_load"] == 1
+    # readings that all carry the same Fable share cannot tell k apart either, whole-percent rounding or not
+    same = {"days": {f"2026-09-{d}": day(mixed) for d in ("18", "19", "20", "21")}}                # 75, 150, 225, 300 units
+    cfg["observations"] = [{"at": f"2026-09-{d} 12:00", "pct": p} for d, p in (("18", 8), ("19", 15), ("20", 23), ("21", 30))]
+    assert ur.calibrate(same, cfg)["max5"]["fable_load"] == 1
+
+
 def test_billing_months_split_weeks_and_run_to_the_end():
     """A paid month starts on the day the current plan began. It takes each limit week's budget pro rata to the
     time the week spends in it, and the share counts that time only: days with no budget neither pad nor dilute

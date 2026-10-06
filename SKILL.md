@@ -51,7 +51,7 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 |---|---|
 | `groups` | three groups by project-name pattern, first match wins: `core` = main work, `work` = work misc, `personal` = everything else |
 | `plan_history` | plan by date: `[{"from": "2026-09-08", "plan": "max5"}]`; a week's plan is the one in force at its end; the latest entry's day starts the paid month |
-| `observations` | `/usage` readings (`at`, `pct`, `fable_pct`, plus the 5-hour window `five_pct`, `five_reset`); collected automatically on every run; a plan's budget is the pooled ratio `Σ units ÷ Σ shares` over its readings (early-week points weigh by their size); a week with a reading of its own takes its budget from its latest one; the 5-hour window is sized the same way and drawn as ticks on the week's scale |
+| `observations` | `/usage` readings (`at`, `pct`, `fable_pct`, plus the 5-hour window `five_pct`, `five_reset`); collected automatically on every run; a plan's budget is the pooled ratio `Σ units ÷ Σ shares` over its readings (early-week points weigh by their size), in load units where Fable counts `fable_load` times its API price, `fable_load` fitted to the readings (1 below four of them); a week with a reading of its own takes its budget from its latest one; the 5-hour window is sized the same way and drawn as ticks on the week's scale |
 | `week_reset` | the week's reset moment from `/usage`; windows are measured from it and a partial day is split along the activity profile. Without it, weeks start Monday |
 | `boosts` | promos applied to the weekly budget: `[{"from", "to", "factor"}]` |
 | `factory_weekly_units_pro` | the factory guess used while there are no readings at all |

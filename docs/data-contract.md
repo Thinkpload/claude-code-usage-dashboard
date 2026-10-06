@@ -17,7 +17,8 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
     {"start": "2026-09-08", "end": "2026-10-07",
      "units": 2926.4,                    // load units in the month
      "budget": 4254.7,                   // the most the limit allowed in it: each week's budget pro rata to its time there,
-                                         // the running month to its end at this week's budget; null without one
+                                         // the running month to its end at this week's budget, counted in load units and
+                                         // shown in units at the month's model mix (like a week's); null without one
      "budget_units": 2925.4,             // load units over the time that has a budget, the base of pct
      "pct": 68.8,                        // budget_units / budget x 100; null without a budget (Fable is weekly only)
      "covered_days": 30.0, "days": 30,   // days with a budget / days in the month
@@ -51,9 +52,11 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
     {"start": "2026-09-10", "end": "2026-09-16", "start_at": "2026-09-10 20:00",
      "plan": "max5", "plan_label": "Max 5x",
      "units": 105.5,                     // load units = tokens x weights, all models
-     "budget": 527.6,                    // the window's budget including any promo; null if the plan is not calibrated
-     "pct": 20.0,                        // units / budget x 100; null without a budget
+     "budget": 527.6,                    // the window's budget including any promo, in units at this window's model mix
+                                         // (the limit counts Fable at fable_load); null if the plan is not calibrated
+     "pct": 20.0,                        // units / budget x 100 (= load / the budget in load units); null without a budget
      "fable_units": 83.9, "fable_budget": 246.6, "fable_pct": 34.0,   // Fable's separate scale
+     "fable_load": 2.0,                  // the plan's fable_load (see limits.budgets) the window's pct is counted with
      "boost": 1.5,                       // promo multiplier for this window
      "estimated": false,                 // true = this plan has no reading of its own (so no percentage)
      "partial": true}                    // the window is still running
@@ -67,7 +70,9 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
   "limits": {
     "calibrated": true,                  // is there a reading for the current plan
     "plan_now": "Max 5x",
-    "budgets": {"Max 5x": {"all": 351.6, "fable": 164.6, "estimated": false}, "Pro": {…, "estimated": true}},
+    "budgets": {"Max 5x": {"all": 351.6, "fable": 164.6, "fable_load": 2.0, "estimated": false}, "Pro": {…, "estimated": true}},
+                                         // all = load units = units + (fable_load - 1) x Fable units; fable_load is fitted
+                                         // to the readings (how much harder Fable loads the limit than its API price says), 1 without enough of them
     "observations": [{"at": "2026-09-12 05:50", "pct": 20, "fable_pct": 34,
                       "five_pct": 74, "five_reset": "2026-09-12 07:40"}],   // the 5-hour window, when fetched
     "week_reset": "2026-09-17 20:00",    // or null (weeks start Monday)
