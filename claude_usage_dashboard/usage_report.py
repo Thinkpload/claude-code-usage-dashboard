@@ -154,7 +154,7 @@ def group_of(name, cfg):
 def new_ins():
     """Where the spend goes, in load units: context size, effort, subagents, skills, cold starts."""
     return {"units": 0.0, "ctx": {"lt50": 0.0, "50_100": 0.0, "100_150": 0.0, "gt150": 0.0},
-            "effort": defaultdict(int), "effort_units": defaultdict(float), "effort_out": defaultdict(int), "side_units": 0.0, "cache_create_units": 0.0,
+            "effort": defaultdict(int), "effort_cells": {}, "side_units": 0.0, "cache_create_units": 0.0,
             "skills": defaultdict(float), "sessions": 0, "sessions_short": 0, "first_call_units": 0.0}
 
 
@@ -231,10 +231,15 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
                         ins = days[d][name]["ins"]
                         ins["units"] += units
                         ctx = tok["input"] + tok["cache_read"] + tok["cache_create"]
-                        ins["ctx"]["lt50" if ctx < 50e3 else "50_100" if ctx < 100e3 else "100_150" if ctx < 150e3 else "gt150"] += units
+                        cb = "lt50" if ctx < 50e3 else "50_100" if ctx < 100e3 else "100_150" if ctx < 150e3 else "gt150"
+                        ins["ctx"][cb] += units
                         ins["effort"][r.get("effort") or "?"] += 1
-                        ins["effort_units"][r.get("effort") or "?"] += units
-                        ins["effort_out"][r.get("effort") or "?"] += tok["output"]
+                        # effort stuck to the exact model and the context size: [calls, units, output] per cell, so the page
+                        # compares a level only with high on the same model version and at a similar context
+                        cell = ins["effort_cells"].setdefault(r.get("effort") or "?", {}).setdefault(model, {}).setdefault(cb, [0, 0.0, 0])
+                        cell[0] += 1
+                        cell[1] += units
+                        cell[2] += tok["output"]
                         ins["cache_create_units"] += tok["cache_create"] * w["cache_create"] / 1e6
                         if r.get("isSidechain"):
                             ins["side_units"] += units
@@ -273,7 +278,8 @@ def merge(history, fresh):
                 ins[k] = round(ins[k], 3)
             ins["ctx"] = {k: round(x, 3) for k, x in ins["ctx"].items()}
             ins["skills"] = {k: round(x, 3) for k, x in ins["skills"].items() if x >= 0.001}
-            ins["effort_units"] = {k: round(x, 3) for k, x in ins["effort_units"].items()}
+            ins["effort_cells"] = {e: {m: {b: [c[0], round(c[1], 4), c[2]] for b, c in bs.items()} for m, bs in ms.items()}
+                                   for e, ms in ins["effort_cells"].items()}
             snap = {"sec": int(v["sec"]), "hours": [int(h) for h in v["hours"]], "msgs": v["msgs"],
                     "sessions": sorted(v["sessions"]), "models": models, "ins": ins}
             old = hd.get(name)

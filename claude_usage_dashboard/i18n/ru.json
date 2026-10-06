@@ -340,7 +340,6 @@
  "  // the limit weeks of a paid month: each with the moment it opens and the share of it that falls in the month": "  // лимитные недели оплаченного месяца: у каждой момент открытия и доля, что приходится на месяц",
  "  // the 5-hour window against a week: its size in % of the week, whether one is open, how many still open before the reset": "  // 5-часовое окно против недели: его размер в % недели, открыто ли сейчас, сколько ещё откроется до сброса",
  "    // the paid month in view (or the running one): its weeks against their own limit, what burned out, whether the plan fits": "    // оплаченный месяц на экране (или текущий): его недели против своего лимита, что сгорело, подходит ли тариф",
- "[['on average', mAvg, 100]]": "[['в среднем', mAvg, 100]]",
  "`The plan is at its ceiling: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`": "`Тариф на пределе: в среднем ${ru(mAvg, 0)} % недельного лимита за ${fmtSpan(bm)}`",
  "`The plan is roomy: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`": "`Тариф с запасом: в среднем ${ru(mAvg, 0)} % недельного лимита за ${fmtSpan(bm)}`",
  "`The plan fits: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`": "`Тариф в самый раз: в среднем ${ru(mAvg, 0)} % недельного лимита за ${fmtSpan(bm)}`",
@@ -369,5 +368,12 @@
  ">Effort: the price of one call against ${baseK || 'the average one'}${eDays < A.days.length ? ` · ${eDays} of ${A.days.length} d` : ''}</h3>": ">Усилие (effort): цена одного вызова против ${baseK || 'среднего'}${eDays < A.days.length ? ` · ${eDays} из ${A.days.length} дн` : ''}</h3>",
  "<em>calls</em> ${ru(100 * E[k].calls / eC, 0)} % → <em>spend</em> $": "<em>вызовов</em> ${ru(100 * E[k].calls / eC, 0)} % → <em>расхода</em> $",
  ">Priced from your own logs: Anthropic does not publish what an effort level costs. Bar = price, line = output, tick = ×1.<": ">Посчитано по вашим журналам: Anthropic не публикует, во что обходится уровень усилия. Полоса — цена, линия — вывод, риска — ×1.<",
- "` · too few calls (${ru(E[k].calls)})`": "` · мало данных (${ru(E[k].calls)} выз.)`"
+ "` · too few calls (${ru(E[k].calls)})`": "` · мало данных (${ru(E[k].calls)} выз.)`",
+ "    // the plan: a card per limit week of the month, its share of its own limit; the tick is the month's average": "    // тариф: по карточке на каждую лимитную неделю месяца, её доля от своего лимита; риска — среднее за месяц",
+ "' Tick = the month’s average.'": "' Риска — среднее за месяц.'",
+ "` · ${ru(x.share * 7, 1)} d in the month`": "` · ${ru(x.share * 7, 1)} дн в месяце`",
+ "`<em>running</em> · ${ru(left, 0)} units left`": "`<em>идёт</em> · осталось ${ru(left, 0)} ед.`",
+ "`${ru(w.units, 0)} of ${ru(w.budget, 0)} units`": "`${ru(w.units, 0)} из ${ru(w.budget, 0)} ед.`",
+ "`<b>${fmtSpan(w)}</b>${w.partial ? ' · running' : ''}<br>${ru(w.units, 0)} of ${ru(w.budget, 0)} units - ${ru(w.pct, 0)} %<br><span class=\"k\">in the month</span> ${ru(x.share * 7, 1)} of 7 d<br><span class=\"k\">month average</span> ${ru(mAvg, 0)} %`": "`<b>${fmtSpan(w)}</b>${w.partial ? ' · идёт' : ''}<br>${ru(w.units, 0)} из ${ru(w.budget, 0)} ед. — ${ru(w.pct, 0)} %<br><span class=\"k\">в месяце</span> ${ru(x.share * 7, 1)} из 7 дн<br><span class=\"k\">среднее за месяц</span> ${ru(mAvg, 0)} %`",
+ "` · ${ru(x.share * 7, 1)} d`": "` · ${ru(x.share * 7, 1)} дн`"
 }

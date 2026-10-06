@@ -35,8 +35,7 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
          "ins": {                        // where the spend goes, in load units (tokens x weights)
            "units": 12.4, "ctx": {"lt50": 0.1, "50_100": 2.0, "100_150": 3.1, "gt150": 7.2},   // by the call's context size
            "effort": {"high": 200, "xhigh": 60},          // calls by effort level
-           "effort_units": {"high": 4.1, "xhigh": 2.9},   // load units of those calls
-           "effort_out": {"high": 310000, "xhigh": 150000},   // their output tokens, thinking included
+           "effort_cells": {"high": {"claude-opus-5": {"gt150": [180, 3.9, 210000]}}},   // effort -> exact model -> context bucket -> [calls, load units, output tokens]
            "side_units": 0.2,                             // of which subagents
            "cache_create_units": 2.6,                     // cache writes
            "skills": {"claude-api": 0.4},                 // re-reading a skill's text from cache

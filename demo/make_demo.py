@@ -103,15 +103,22 @@ def make_ins(rnd, cfg, models):
     s = sum(shares)
     for key, part in zip(("lt50", "50_100", "100_150", "gt150"), shares):
         ins["ctx"][key] = round(units * part / s, 3)
-    # effort: share of the calls, then what one call costs and writes against a call at high
-    levels = (("xhigh", 0.24, 1.13, 1.45), ("high", 0.50, 1.0, 1.0), ("medium", 0.12, 0.6, 0.56), ("low", 0.04, 0.7, 0.62), ("max", 0.10, 1.41, 2.21))
-    out = sum(m["output"] for m in models.values())
-    jit = {e: rnd.uniform(0.95, 1.05) for e, *_ in levels}
-    price, write = (sum(part * w[i] * jit[e] for e, part, *w in levels) for i in (0, 1))
-    for effort, part, pw, ow in levels:
-        ins["effort"][effort] = int(calls * part)
-        ins["effort_units"][effort] = round(units * part * pw * jit[effort] / price, 3)
-        ins["effort_out"][effort] = int(out * part * ow * jit[effort] / write)
+    # effort by exact model and context bucket, [calls, units, output]: share of the calls, then what one call
+    # costs and writes against a call at high on the same model; max only on the big models
+    levels = (("xhigh", 0.24, 1.12, 1.37), ("high", 0.50, 1.0, 1.0), ("medium", 0.12, 0.87, 0.70), ("low", 0.04, 0.38, 0.26), ("max", 0.10, 1.57, 2.08))
+    for name, m in models.items():
+        lv = [x for x in levels if x[0] != "max" or "opus" in name or "fable" in name]
+        jit = {e: rnd.uniform(0.95, 1.05) for e, *_ in lv}
+        price, write = (sum(part * w[i] * jit[e] for e, part, *w in lv) for i in (0, 1))
+        mu = ur.units_of({name: m}, cfg)
+        for effort, part, pw, ow in lv:
+            for key, bpart in zip(("lt50", "50_100", "100_150", "gt150"), shares):
+                c = int(m["calls"] * part * bpart / s)
+                if not c:
+                    continue
+                ins["effort"][effort] += c
+                ins["effort_cells"].setdefault(effort, {}).setdefault(name, {})[key] = [
+                    c, round(mu * part * pw * jit[effort] / price * bpart / s, 4), int(m["output"] * part * ow * jit[effort] / write * bpart / s)]
     ins["side_units"] = round(units * rnd.uniform(0.02, 0.09), 3)
     ins["cache_create_units"] = round(units * rnd.uniform(0.08, 0.18), 3)
     for skill in rnd.sample(SKILLS, rnd.randint(1, 3)):

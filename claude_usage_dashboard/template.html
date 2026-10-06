@@ -267,6 +267,12 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 /* effort: what one call costs at each level, and where the calls' share flows into the spend's */
 .eff{grid-column:1/-1;padding:0 0 22px;margin:0 0 4px;border-bottom:1px solid var(--hair)}
 .eff .eff-note{margin:-4px 0 12px;font-size:12.5px;color:var(--muted)}
+.eff-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 14px;flex-wrap:wrap}
+.eff-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 10px}
+.eff-tabs button{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--hair);background:transparent;color:var(--ink-2);cursor:pointer}
+.eff-tabs button:hover{border-color:var(--axis);color:var(--ink)}
+.eff-tabs button[aria-pressed="true"]{background:var(--surface-2);border-color:var(--axis);color:var(--ink)}
+.eff-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .eff-cards{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:2px}
 @media (max-width:760px){.eff-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ec{position:relative;display:grid;gap:4px;padding:14px 14px 12px;background:var(--surface-2);transition:opacity .15s}
@@ -277,11 +283,13 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .ec:first-child{border-radius:4px 0 0 4px}
 .ec:last-child{border-radius:0 4px 4px 0}
 .ec::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--c)}
-.ec .ec-k{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.ec .ec-k{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ec b{font-size:34px;font-weight:600;line-height:1;letter-spacing:-.025em;color:var(--ink)}
 .ec.base b{color:var(--ink-2)}
 .ec .ec-s{font-size:12px;line-height:1.4;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ec.few b{color:var(--muted)}
+.ec.now b{color:var(--ink-2)}
+.eff.plan{padding-top:18px}
 .ec .ec-s em{font-style:normal;color:var(--muted)}
 .ec:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:1}
 .eff-flow{display:grid;grid-template-columns:auto 1fr;gap:10px;margin:10px 0 0}
@@ -295,7 +303,6 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .eff.dim .seg.on{opacity:1}
 .eff.dim .ec{opacity:.55}
 .eff.dim .ec.on{opacity:1}
-.advice li .mini{margin:10px 0 0}
 .advice ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:12px}
 .advice li{display:grid;grid-template-columns:auto 1fr;gap:10px;font-size:13px;line-height:1.45}
 .advice li .tag{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);height:fit-content;white-space:nowrap}
@@ -980,66 +987,90 @@ const DATA = /*__DATA__*/null;
     const calls = Object.values(I.effort).reduce((a, b) => a + b, 0);
     const skillTop = Object.entries(I.skills).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const skillAll = Object.values(I.skills).reduce((a, b) => a + b, 0);
-    const bars = (rows, fill) => '<div class="mini">' + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${Math.min(100, pct(v, of)).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
-    const mini = (title, rows, fill) => `<h3>${title}</h3>` + bars(rows, fill);
-    let effortTips = () => {};
-    // effort: what one call costs at each level against a call at high (everything it costs against the limit), how much
-    // it writes (output, thinking included - effort's own footprint), and how its share of the calls flows into the spend
-    const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
-    const E = {}; let eDays = 0;
+    const mini = (title, rows, fill) => `<h3>${title}</h3><div class="mini">` + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${pct(v, of).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
+    let planTips = () => {};
+    // effort, stuck to the model: a level is priced only against high on the same model version and at a similar context
+    // size, cell by cell, so neither the model mix nor long contexts leak into the coefficient; a cell needs MIN calls a side
+    const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'], MIN = 20;
+    const EC = {}; let eDays = 0;   // level -> model -> context bucket -> [calls, units, output]
     for (const day of A.days) {
       let has = false;
       for (const v of Object.values(day.p)) {
-        const x = v.ins; if (!x || !x.effort_units || !x.effort_out) continue;
+        const x = v.ins && v.ins.effort_cells; if (!x) continue;
         has = true;
-        for (const [k, n] of Object.entries(x.effort || {})) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).calls += n;
-        for (const [k, u] of Object.entries(x.effort_units)) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).units += u;
-        for (const [k, o] of Object.entries(x.effort_out)) (E[k] || (E[k] = { calls: 0, units: 0, out: 0 })).out += o;
+        for (const [e, ms] of Object.entries(x)) for (const [m, bs] of Object.entries(ms)) for (const [b, c] of Object.entries(bs)) {
+          const t = ((EC[e] ||= {})[m] ||= {})[b] ||= [0, 0, 0];
+          t[0] += c[0]; t[1] += c[1]; t[2] += c[2];
+        }
       }
       eDays += has;
     }
-    const lv = LEVELS.filter((k) => E[k] && E[k].calls).concat(Object.keys(E).filter((k) => !LEVELS.includes(k) && k !== '?' && E[k].calls));
-    const unmarked = E['?'] ? E['?'].calls : 0;
-    let effortBlock = mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)');
-    if (lv.length >= 2) {
-      const eC = lv.reduce((s, k) => s + E[k].calls, 0), eU = lv.reduce((s, k) => s + E[k].units, 0);
-      const baseK = E.high && E.high.calls ? 'high' : null;
-      const b = baseK ? E.high : { calls: eC, units: eU, out: lv.reduce((s, k) => s + E[k].out, 0) };
-      const cost = (k) => (E[k].units / E[k].calls) / (b.units / b.calls), outk = (k) => (E[k].out / E[k].calls) / (b.out / b.calls);
-      const col = (k) => { const i = LEVELS.indexOf(k); return i < 0 ? 'var(--other)' : `var(--e${i + 1})`; };
+    const mCalls = {};
+    for (const e of LEVELS) for (const [m, bs] of Object.entries(EC[e] || {})) for (const c of Object.values(bs)) mCalls[m] = (mCalls[m] || 0) + c[0];
+    const effModels = Object.keys(mCalls).filter((m) => LEVELS.filter((e) => EC[e] && EC[e][m]).length >= 2).sort((a, b) => mCalls[b] - mCalls[a]);
+    const unmarked = Object.values(EC['?'] || {}).flatMap((bs) => Object.values(bs)).reduce((s, c) => s + c[0], 0);
+    const col = (e) => `var(--e${LEVELS.indexOf(e) + 1})`;
+    function renderEffort(only) {
+      const host = $('eff'); if (!host) return;
+      const cells = {};   // level -> 'model|bucket' -> [calls, units, output]
+      for (const e of LEVELS) for (const [m, bs] of Object.entries(EC[e] || {})) if (effModels.includes(m) && (!only || m === only)) for (const [b, c] of Object.entries(bs)) (cells[e] ||= {})[m + '|' + b] = c;
+      const tot = (e) => Object.values(cells[e] || {}).reduce((s, c) => [s[0] + c[0], s[1] + c[1], s[2] + c[2]], [0, 0, 0]);
+      const lv = LEVELS.filter((e) => tot(e)[0]);
+      const baseK = tot('high')[0] ? 'high' : lv.slice().sort((a, b) => tot(b)[0] - tot(a)[0])[0];
+      const coef = (e) => {
+        let u = 0, o = 0, w = 0;
+        for (const [k, c] of Object.entries(cells[e] || {})) {
+          const h = (cells[baseK] || {})[k];
+          if (!h || c[0] < MIN || h[0] < MIN || !h[1] || !h[2]) continue;
+          u += c[0] * (c[1] / c[0]) / (h[1] / h[0]); o += c[0] * (c[2] / c[0]) / (h[2] / h[0]); w += c[0];
+        }
+        return w ? { price: u / w, out: o / w, n: w } : null;
+      };
+      const K = Object.fromEntries(lv.map((e) => [e, coef(e)]));
+      const eC = lv.reduce((s, e) => s + tot(e)[0], 0), eU = lv.reduce((s, e) => s + tot(e)[1], 0);
+      const ranOn = (e) => Object.entries(EC[e] || {}).filter(([m]) => effModels.includes(m) && (!only || m === only))
+        .map(([m, bs]) => [m, Object.values(bs).reduce((s, c) => s + c[0], 0)]).sort((a, b) => b[1] - a[1]);
       // the flow: calls on top, spend below, one band per level, a 2-unit surface gap between segments
       const W = 1000, T = 8, B = 56, H = 64;
       let cx = 0, ux = 0;
-      const flow = lv.map((k) => {
-        const cw = W * E[k].calls / eC, uw = W * E[k].units / eU;
+      const flow = lv.map((e) => {
+        const cw = W * tot(e)[0] / eC, uw = W * tot(e)[1] / eU;
         const g = (w) => Math.min(1, w / 4);
         const [c0, c1, u0, u1] = [cx + g(cw), cx + cw - g(cw), ux + g(uw), ux + uw - g(uw)];
         cx += cw; ux += uw;
         const m = (T + B) / 2;
-        return `<g data-k="${k}"><path class="rib" fill="${col(k)}" d="M${c0} ${T}C${c0} ${m} ${u0} ${m} ${u0} ${B}L${u1} ${B}C${u1} ${m} ${c1} ${m} ${c1} ${T}Z"/>` +
-          `<rect class="seg" fill="${col(k)}" x="${c0}" y="0" width="${Math.max(0.6, c1 - c0)}" height="${T}"/><rect class="seg" fill="${col(k)}" x="${u0}" y="${B}" width="${Math.max(0.6, u1 - u0)}" height="${H - B}"/></g>`;
+        return `<g data-k="${e}"><path class="rib" fill="${col(e)}" d="M${c0} ${T}C${c0} ${m} ${u0} ${m} ${u0} ${B}L${u1} ${B}C${u1} ${m} ${c1} ${m} ${c1} ${T}Z"/>` +
+          `<rect class="seg" fill="${col(e)}" x="${c0}" y="0" width="${Math.max(0.6, c1 - c0)}" height="${T}"/><rect class="seg" fill="${col(e)}" x="${u0}" y="${B}" width="${Math.max(0.6, u1 - u0)}" height="${H - B}"/></g>`;
       }).join('');
-      const top = Math.ceil(2 * Math.max(1.5, ...lv.map((k) => Math.max(cost(k), outk(k))))) / 2, at = (x) => (100 * Math.min(x, top) / top).toFixed(1) + '%';
-      effortBlock = `<section class="eff" id="eff"><h3 id="h-effort">Effort: the price of one call against ${baseK || 'the average one'}${eDays < A.days.length ? ` · ${eDays} of ${A.days.length} d` : ''}</h3>
-        <p class="eff-note">Priced from your own logs: Anthropic does not publish what an effort level costs. Bar = price, line = output, tick = ×1.</p><div class="eff-cards" style="--n:${lv.length}">` +
-        lv.map((k) => `<div class="ec${k === baseK ? ' base' : ''}${E[k].calls < 200 ? ' few' : ''}" data-k="${k}" tabindex="0" style="--c:${col(k)}"><span class="ec-k">${k}${E[k].calls < 200 ? ` · too few calls (${ru(E[k].calls)})` : ''}</span><b>×${ru(cost(k), 2)}</b>` +
-          `<span class="ec-m"><i style="width:${at(cost(k))}"></i><i class="o" style="width:${at(outk(k))}"></i><s style="left:${at(1)}"></s></span>` +
-          `<span class="ec-s"><em>output</em> ×${ru(outk(k), 2)}</span><span class="ec-s"><em>calls</em> ${ru(100 * E[k].calls / eC, 0)} % → <em>spend</em> ${ru(100 * E[k].units / eU, 0)} %</span></div>`).join('') +
-        `</div><div class="eff-flow"><div class="ef-l"><span>calls</span><span>spend</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${flow}</svg></div></section>`;
-      effortTips = () => {
-        const host = $('eff'); if (!host) return;
-        const on = (k) => { host.classList.toggle('dim', !!k); host.querySelectorAll('[data-k]').forEach((n) => n.classList.toggle('on', n.dataset.k === k)); host.querySelectorAll('g[data-k] > *').forEach((n) => n.classList.toggle('on', n.parentNode.dataset.k === k)); };
-        host.querySelectorAll('.ec, g[data-k]').forEach((n) => {
-          const k = n.dataset.k, e = E[k];
-          n.addEventListener('mouseenter', () => on(k)); n.addEventListener('focus', () => on(k));
-          n.addEventListener('mouseleave', () => on(null)); n.addEventListener('blur', () => on(null));
-          bindTip(n, `<b>${k}</b><br><span class="k">calls</span> ${ru(e.calls)} · ${ru(100 * e.calls / eC, 1)} %<br><span class="k">spend</span> ${ru(e.units, 1)} units · ${ru(100 * e.units / eU, 1)} %` +
-            `<br><span class="k">one call</span> ${ru(e.units / e.calls, 3)} units, ${ru(e.out / e.calls)} output tokens` +
-            `<br><span class="k">against ${baseK || 'the average'}</span> price ×${ru(cost(k), 2)}, output ×${ru(outk(k), 2)}`);
-        });
-        bindTip($('h-effort'), `<b>Effort, priced from your own logs</b><br><span class="k">×price</span> load units of one call against a call at ${baseK || 'the average'}: all it costs against the limit - context read from cache, cache writes, output<br><span class="k">×output</span> tokens it writes, thinking included - what the effort level itself changes<br>The price also carries what tends to run at that level (long contexts, Fable); the output does not.<br><span class="k">the bands</span> each level's share of the calls (top) flowing into its share of the spend (bottom): a band that widens costs more than its share` +
-          (unmarked ? `<br>${ru(unmarked)} calls with no effort mark are left out.` : '') + (eDays < A.days.length ? `<br>Counted over ${eDays} of ${A.days.length} days: older logs kept only the number of calls.` : ''));
+      const top = Math.ceil(2 * Math.max(1.5, ...lv.map((e) => (K[e] ? Math.max(K[e].price, K[e].out) : 0)))) / 2, at = (x) => (100 * Math.min(x, top) / top).toFixed(1) + '%';
+      const card = (e) => {
+        const k = K[e], t = tot(e), few = t[0] < 200;
+        return `<div class="ec${e === baseK ? ' base' : ''}${few || !k ? ' few' : ''}" data-k="${e}" tabindex="0" style="--c:${col(e)}"><span class="ec-k">${e}${few ? ` · too few calls (${ru(t[0])})` : ''}</span>` +
+          (k ? `<b>×${ru(k.price, 2)}</b><span class="ec-m"><i style="width:${at(k.price)}"></i><i class="o" style="width:${at(k.out)}"></i><s style="left:${at(1)}"></s></span><span class="ec-s"><em>output</em> ×${ru(k.out, 2)}</span>`
+            : `<b>—</b><span class="ec-m"></span><span class="ec-s"><em>nothing to compare with ${baseK}</em></span>`) +
+          `<span class="ec-s"><em>calls</em> ${ru(100 * t[0] / eC, 0)} % → <em>spend</em> ${ru(100 * t[1] / eU, 0)} %</span>` +
+          (k && k.n < 0.9 * t[0] ? `<span class="ec-s"><em>compared</em> ${ru(k.n)} of ${ru(t[0])}</span>` : '') + '</div>';
       };
+      const tabs = effModels.length < 2 ? '' : '<div class="eff-tabs" role="group" aria-label="model">' +
+        [''].concat(effModels).map((m) => `<button type="button" data-m="${m}" aria-pressed="${m === (only || '')}">${m ? modelLabel(m) : 'All models'}</button>`).join('') + '</div>';
+      const which = only || (effModels.length === 1 ? effModels[0] : null);
+      host.innerHTML = `<div class="eff-head"><h3 id="h-effort">Effort: the price of one call against ${baseK} on the same model${which ? ` · ${modelLabel(which)}` : ''}${eDays < A.days.length ? ` · ${eDays} of ${A.days.length} d` : ''}</h3>${tabs}</div>
+        <p class="eff-note">Priced from your own logs: Anthropic does not publish what an effort level costs. A level is set against ${baseK} on the same model version and at a similar context size. Bar = price, line = output, tick = ×1.</p>
+        <div class="eff-cards" style="--n:${lv.length}">${lv.map(card).join('')}</div>
+        <div class="eff-flow"><div class="ef-l"><span>calls</span><span>spend</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${flow}</svg></div>`;
+      host.querySelectorAll('.eff-tabs button').forEach((btn) => btn.addEventListener('click', () => renderEffort(btn.dataset.m || null)));
+      const on = (k) => { host.classList.toggle('dim', !!k); host.querySelectorAll('[data-k]').forEach((n) => n.classList.toggle('on', n.dataset.k === k)); host.querySelectorAll('g[data-k] > *').forEach((n) => n.classList.toggle('on', n.parentNode.dataset.k === k)); };
+      host.querySelectorAll('.ec, g[data-k]').forEach((n) => {
+        const e = n.dataset.k, t = tot(e), k = K[e];
+        n.addEventListener('mouseenter', () => on(e)); n.addEventListener('focus', () => on(e));
+        n.addEventListener('mouseleave', () => on(null)); n.addEventListener('blur', () => on(null));
+        bindTip(n, `<b>${e}</b>${which ? ` · ${modelLabel(which)}` : ''}<br><span class="k">calls</span> ${ru(t[0])} · ${ru(100 * t[0] / eC, 1)} %<br><span class="k">spend</span> ${ru(t[1], 1)} units · ${ru(100 * t[1] / eU, 1)} %` +
+          (k ? `<br><span class="k">against ${baseK}</span> price ×${ru(k.price, 2)}, output ×${ru(k.out, 2)}<br><span class="k">compared</span> ${ru(k.n)} of ${ru(t[0])} calls, cell by cell`
+            : `<br>No model and context size with ${MIN}+ calls both here and at ${baseK}.`) +
+          (which ? '' : `<br><span class="k">ran on</span> ${ranOn(e).map(([m, c]) => `${modelLabel(m)} ${ru(c)}`).join(', ')}`));
+      });
+      bindTip($('h-effort'), `<b>Effort, priced from your own logs</b><br><span class="k">×price</span> load units of one call against a call at ${baseK}: all it costs against the limit - context read from cache, cache writes, output<br><span class="k">×output</span> tokens it writes, thinking included - what the effort level itself changes<br><span class="k">like for like</span> calls are compared only within one model version and one context size (under 50k, 50-100k, 100-150k, over 150k), weighed by the level's calls: neither a pricier model nor a longer context passes for effort<br><span class="k">the bands</span> each level's share of the calls (top) flowing into its share of the spend (bottom)` +
+        (unmarked ? `<br>${ru(unmarked)} calls with no effort mark are left out.` : '') + (eDays < A.days.length ? `<br>Counted over ${eDays} of ${A.days.length} days: older logs did not keep this split.` : ''));
     }
     const left = document.createElement('div');
     left.innerHTML =
@@ -1073,19 +1104,30 @@ const DATA = /*__DATA__*/null;
     const bm = DATA.billing_months.find((b) => b.start === current.from) || DATA.billing_months[DATA.billing_months.length - 1];
     const mw = bm ? monthWeeks(bm).filter((x) => x.w.pct != null) : [], mDone = mw.filter((x) => !x.w.partial);
     const mAvg = mDone.length ? mDone.reduce((s, x) => s + x.w.pct * x.share, 0) / mDone.reduce((s, x) => s + x.share, 0) : null;
+    // the plan: a card per limit week of the month, its share of its own limit; the tick is the month's average
+    let planBlock = '';
     if (mDone.length) {
       const lost = mDone.reduce((s, x) => s + Math.max(0, x.w.budget - x.w.units) * x.share, 0);
       const worst = mDone.reduce((m, x) => (x.w.pct < m.w.pct ? x : m));
       const hot = mDone.filter((x) => x.w.pct >= 95).length, ceiling = mAvg >= 90 || hot >= 2, roomy = mAvg < 40;
-      tips.push([ceiling ? 'warn' : roomy ? 'info' : 'ok',
-        ceiling ? `The plan is at its ceiling: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
+      const head = ceiling ? `The plan is at its ceiling: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
           : roomy ? `The plan is roomy: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`
-          : `The plan fits: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`,
-        (lost < 1 ? 'Nothing burned out: every finished week ran to its limit.'
+          : `The plan fits: ${ru(mAvg, 0)} % of the weekly limit on average in ${fmtSpan(bm)}`;
+      const note = (lost < 1 ? 'Nothing burned out: every finished week ran to its limit.'
           : `Burned out ~<b>${ru(lost, 0)} units</b> of weekly limits, <b>${ru(100 * lost / bm.budget, 0)} %</b> of the month; the most in ${fmtSpan(worst.w)}, used ${ru(worst.w.pct, 0)} %.`) +
         (hot ? ` Weeks near 100 %: ${hot}.` : '') +
-        (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : ''),
-        bars(mw.map((x) => [fmtSpan(x.w) + (x.w.partial ? ' …' : ''), x.w.pct, 100]).concat([['on average', mAvg, 100]]), 'var(--accent)')]);
+        (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : '') + ' Tick = the month’s average.';
+      planBlock = `<section class="eff plan" id="plan"><h3>${head}</h3><p class="eff-note">${note}</p><div class="eff-cards" style="--n:${mw.length}">` +
+        mw.map((x, i) => {
+          const w = x.w, left = Math.max(0, w.budget - w.units);
+          return `<div class="ec${w.partial ? ' now' : ''}" data-i="${i}" tabindex="0" style="--c:${w.pct >= 100 ? 'var(--bad)' : 'var(--accent)'}"><span class="ec-k">${fmtSpan(w)}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d` : ''}</span><b>${ru(w.pct, 0)} %</b>` +
+            `<span class="ec-m"><i style="width:${Math.min(100, w.pct).toFixed(1)}%"></i><s style="left:${Math.min(100, mAvg).toFixed(1)}%"></s></span>` +
+            `<span class="ec-s">${w.partial ? `<em>running</em> · ${ru(left, 0)} units left` : `${ru(w.units, 0)} of ${ru(w.budget, 0)} units`}</span></div>`;
+        }).join('') + '</div></section>';
+      planTips = () => document.querySelectorAll('#plan .ec').forEach((n) => {
+        const x = mw[n.dataset.i], w = x.w;
+        bindTip(n, `<b>${fmtSpan(w)}</b>${w.partial ? ' · running' : ''}<br>${ru(w.units, 0)} of ${ru(w.budget, 0)} units - ${ru(w.pct, 0)} %<br><span class="k">in the month</span> ${ru(x.share * 7, 1)} of 7 d<br><span class="k">month average</span> ${ru(mAvg, 0)} %`);
+      });
     }
     // this week: how much is left to take before the reset, in units and in 5-hour windows
     const cw = DATA.weeks[DATA.weeks.length - 1];
@@ -1103,10 +1145,12 @@ const DATA = /*__DATA__*/null;
         `Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`]);
     }
     const right = document.createElement('ol');
-    right.innerHTML = tips.map(([kind, head, how, extra = '']) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span>${extra}</div></li>`).join('');
-    if (effortBlock.startsWith('<section')) c.insertAdjacentHTML('beforeend', effortBlock); else left.insertAdjacentHTML('afterbegin', effortBlock);
+    right.innerHTML = tips.map(([kind, head, how]) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span></div></li>`).join('');
+    if (effModels.length) c.insertAdjacentHTML('beforeend', '<section class="eff" id="eff"></section>');
+    else left.insertAdjacentHTML('afterbegin', mini('Calls by effort', Object.entries(I.effort).sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, n, calls]), 'var(--r3)'));
+    if (planBlock) c.insertAdjacentHTML('beforeend', planBlock);
     c.appendChild(left); c.appendChild(right);
-    effortTips();
+    renderEffort(null); planTips();
   }
 
   // ---------- projects table ----------

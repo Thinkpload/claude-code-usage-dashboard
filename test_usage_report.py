@@ -83,11 +83,12 @@ def test_effort_splits_spend():
         days = ur.scan(CFG, root)
     ins = days["2026-09-01"]["acme-api"]["ins"]
     assert dict(ins["effort"]) == {"high": 1, "max": 1}
-    eu = ins["effort_units"]
-    assert abs(eu["high"] + eu["max"] - ins["units"]) < 1e-9 and eu["max"] > eu["high"], dict(eu)
-    assert dict(ins["effort_out"]) == {"high": 100, "max": 900}
+    cells = ins["effort_cells"]                    # effort -> model -> context bucket -> [calls, units, output]
+    hi_c, mx_c = cells["high"]["claude-opus-5"]["lt50"], cells["max"]["claude-opus-5"]["lt50"]   # 1 011 tokens of context
+    assert hi_c[0] == 1 and mx_c[0] == 1 and hi_c[2] == 100 and mx_c[2] == 900, cells
+    assert abs(hi_c[1] + mx_c[1] - ins["units"]) < 1e-9 and mx_c[1] > hi_c[1], cells
     hist = ur.merge({"days": {}}, days)
-    assert set(hist["days"]["2026-09-01"]["acme-api"]["ins"]["effort_units"]) == {"high", "max"}
+    assert hist["days"]["2026-09-01"]["acme-api"]["ins"]["effort_cells"]["max"]["claude-opus-5"]["lt50"][2] == 900
 
 
 def test_groups_and_names():
