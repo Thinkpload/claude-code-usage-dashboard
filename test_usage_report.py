@@ -152,6 +152,11 @@ def test_parse_usage_from_endpoint_payload():
          "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}}]}
     obs, reset = ur.parse_usage(payload, cfg)
     assert obs == {"pct": 48, "fable_pct": 49, "five_pct": 49, "five_reset": "2026-09-14 18:30"} and reset == "2026-09-17 20:00", (obs, reset)   # UTC -> +3
+    # reset times wobble around the minute from one fetch to the next: a second short of it still lands on the minute
+    wobble = {"limits": [
+        {"kind": "session", "group": "session", "percent": 49, "resets_at": "2026-09-14T15:29:59.991907+00:00", "scope": None},
+        {"kind": "weekly_all", "group": "weekly", "percent": 48, "resets_at": "2026-09-17T16:59:59.892328+00:00", "scope": None}]}
+    assert ur.parse_usage(wobble, cfg) == ({"pct": 48, "five_pct": 49, "five_reset": "2026-09-14 18:30"}, "2026-09-17 20:00")
     assert ur.parse_usage({"limits": []}, cfg) == (None, None)
     # the cloud session credit sits under a codename; it is the entry that carries a dollar limit
     credit = {"five_hour": {"utilization": 20.0, "limit_dollars": None, "used_dollars": None},

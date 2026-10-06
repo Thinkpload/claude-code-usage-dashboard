@@ -15,6 +15,7 @@
   --s1:#e0a64a; --s2:#7fbbd4; --s3:#b4a992; --other:#46545a;          /* groups: brass / ice / hemp */
   --r1:#42768d; --r2:#5b9cb7; --r3:#86c1d9; --r4:#b6dbea;             /* ordinal: one hue, dark to light */
   --e1:#2f5f73; --e2:#42819b; --e3:#5fa3bf; --e4:#8cc5dc; --e5:#c2e3f0; /* effort low -> max: faint to strong */
+  --live:#6cc28e;                                                      /* the week still running */
   --heat:#7fbbd4;
   --glow:rgba(224,166,74,.14);
   --ok:#7d9299; --warn:#e0a64a; --bad:#ec7157;                        /* calm / attention / alarm */
@@ -32,6 +33,7 @@
   --s1:#a06c12; --s2:#1f6b88; --s3:#8a8070; --other:#a7aeb1;
   --r1:#10394a; --r2:#1f6b88; --r3:#3d90ad; --r4:#4f96b3;
   --e1:#7db4ca; --e2:#4f9ab8; --e3:#2f7f9f; --e4:#1a5d78; --e5:#0d3344;
+  --live:#2e7d4f;
   --heat:#1f6b88;
   --ok:#5d6f76; --warn:#8a5d12; --bad:#b2452c;
   --cold:#2f6580;
@@ -1135,7 +1137,7 @@ const DATA = /*__DATA__*/null;
         (hot ? ` Weeks near 100 %: ${hot}.` : '') +
         (ceiling ? ' If running out gets in the way, a bigger plan pays off.' : roomy ? ' There is room to work more, or a smaller plan would do.' : '') +
         ' Bar = share of the week’s limit, tick = the month’s average; below, how each week climbed to its level hour by hour, the dashed line is 100 %.';
-      const heat = (w) => (w.partial ? 'var(--ink-2)' : w.pct >= 100 ? 'var(--bad)' : w.pct < 60 ? 'var(--accent-2)' : 'var(--accent)');
+      const heat = (w) => (w.partial ? 'var(--live)' : w.pct >= 100 ? 'var(--bad)' : w.pct < 60 ? 'var(--accent-2)' : 'var(--accent)');
       const avgAt = Math.min(100, mAvg).toFixed(1) + '%';
       const card = (x, i) => {
         const w = x.w, left = Math.max(0, w.budget - w.units), b = burned(x);
@@ -1168,9 +1170,8 @@ const DATA = /*__DATA__*/null;
         return pts.map(([t, c]) => [t, c * k]);
       };
       // one column per card, the same width and the same 2px gap, so the chart sits square under the cards; one scale for
-      // the whole block, topped by the highest week (and never below 100 %)
-      const W = 1000, H = 96, cw = W / mw.length, g = 0.9, TOP = 4, wk = 7 * 864e5;
-      const yMax = Math.max(100, ...mw.map((x) => x.w.pct)), Y = (pc) => H - (H - TOP) * Math.min(pc, yMax) / yMax;
+      // the whole block, its top edge is 100 % of the limit (a week past it reaches the edge, its card says by how much)
+      const W = 1000, H = 96, cw = W / mw.length, g = 0.9, wk = 7 * 864e5, Y = (pc) => H - H * Math.min(pc, 100) / 100;
       const sky = mw.map((x, i) => {
         const w = x.w, x0 = i * cw + (i ? g : 0), x1 = (i + 1) * cw - (i < mw.length - 1 ? g : 0), at = (t) => x0 + (x1 - x0) * Math.max(0, Math.min(1, (t - x.a) / wk));
         const in0 = at(Math.max(+x.a, +ms)), in1 = at(Math.min(+x.a + wk, +me));

@@ -762,16 +762,19 @@ def parse_usage(payload, cfg):
     """The /usage endpoint's answer -> a reading {"pct", "fable_pct", "five_pct", "five_reset"} plus the week's
     reset moment in local time, or (None, None) when there is no weekly limit in it."""
     obs, reset = {}, None
+    # rounded, not cut: the endpoint wobbles around the minute (16:59:59.89 one fetch, 17:00:00.89 the next), and a week
+    # edge at 19:59 instead of 20:00 hands the whole 19-20 hour of the boundary day to the other week
+    when = lambda s: (parse_ts(s, cfg) + timedelta(seconds=30)).strftime("%Y-%m-%d %H:%M")
     for lim in payload.get("limits", []):
         if lim.get("kind") == "session" and lim.get("percent") is not None and lim.get("resets_at"):   # the 5-hour window
             obs["five_pct"] = lim["percent"]
-            obs["five_reset"] = parse_ts(lim["resets_at"], cfg).strftime("%Y-%m-%d %H:%M")
+            obs["five_reset"] = when(lim["resets_at"])
         if lim.get("group") != "weekly" or lim.get("percent") is None:
             continue
         model = ((lim.get("scope") or {}).get("model") or {}).get("display_name")
         if lim.get("kind") == "weekly_all":
             obs["pct"] = lim["percent"]
-            reset = parse_ts(lim["resets_at"], cfg).strftime("%Y-%m-%d %H:%M")
+            reset = when(lim["resets_at"])
         elif model == "Fable":
             obs["fable_pct"] = lim["percent"]
     return (obs, reset) if "pct" in obs else (None, None)
