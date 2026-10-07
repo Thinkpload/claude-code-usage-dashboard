@@ -136,6 +136,8 @@ def build_history(cfg, today, seed=20260101):
         d = today - timedelta(days=DAYS - 1 - i)
         key = d.strftime("%Y-%m-%d")
         total = day_profile(rnd, d)
+        if (today - d).days < 4:   # a crunch before a release, every day of it worked: the gauge has something to warn about
+            total = max(total, 4.5 * 3600) * 1.3
         if total <= 0:
             continue
         day, day_commits = {}, {}
@@ -182,22 +184,30 @@ def main():
     # Put the reset far enough ahead that "now" sits two thirds into the week, so the gauge shows
     # a week in flight rather than one that just started.
     cfg["week_reset"] = (now + timedelta(days=2, hours=8)).strftime("%Y-%m-%d 20:00")
+    # The paid month began 25 days ago, so the plan view has a month of limit weeks to show.
+    cfg["plan_history"] = [{"from": (now - timedelta(days=25)).strftime("%Y-%m-%d"), "plan": "max5"}]
 
-    # A /usage reading a day back calibrates the budget. Solving for its percentage instead of
-    # inventing one lands the dial on TARGET_PCT: budget = read/pct, so now = pct * now/read.
-    TARGET_PCT, TARGET_FABLE = 64.0, 41.0
-    reading = now - timedelta(days=1)
-    start = ur.window_start(now, cfg)
+    # /usage readings twice a week against one weekly budget, rounded to whole percent like the real
+    # ones. The budget is set so the heaviest finished week lands near the limit without crossing it, and the
+    # week in flight, two thirds in, stays under three quarters of it.
     is_fable = lambda m: m.startswith("claude-fable")
-    used_read = ur.units_between(history, start, reading, cfg)
-    used_now = ur.units_between(history, start, now, cfg)
-    fab_read = ur.units_between(history, start, reading, cfg, only=is_fable)
-    fab_now = ur.units_between(history, start, now, cfg, only=is_fable)
-    cfg["observations"] = [{
-        "at": reading.strftime("%Y-%m-%d %H:%M"),
-        "pct": round(TARGET_PCT * used_read / used_now, 1) if used_now else TARGET_PCT,
-        "fable_pct": round(TARGET_FABLE * fab_read / fab_now, 1) if fab_now else TARGET_FABLE,
-    }]
+    fmt = lambda t: t.strftime("%Y-%m-%d %H:%M")
+    start = ur.window_start(now, cfg)
+    weeks = [start - timedelta(days=7 * i) for i in range(6, -1, -1)]
+    full = [ur.units_between(history, w, w + timedelta(days=7), cfg) for w in weeks[:-1]]
+    full_f = [ur.units_between(history, w, w + timedelta(days=7), cfg, only=is_fable) for w in weeks[:-1]]
+    budget = max(max(full) / 0.96, ur.units_between(history, start, now, cfg) / 0.74)
+    fable_budget = max(max(full_f) / 0.88, ur.units_between(history, start, now, cfg, only=is_fable) / 0.74)
+    reading = lambda w, at: {"at": fmt(at), "pct": round(100 * ur.units_between(history, w, at, cfg) / budget),
+                             "fable_pct": round(100 * ur.units_between(history, w, at, cfg, only=is_fable) / fable_budget)}
+    obs = [reading(w, at) for w in weeks for at in (w + timedelta(days=3, hours=-4), w + timedelta(days=6))
+           if at < now - timedelta(hours=1)]                                 # mid-week, then the evening before the reset
+    # the latest reading is minutes old and carries the 5-hour window: opened three hours ago, a sixth of the week
+    last, five_reset = reading(start, now - timedelta(minutes=10)), now + timedelta(hours=2)
+    last["five_pct"] = round(100 * ur.units_between(history, five_reset - timedelta(hours=5), now, cfg) / (budget / 6))
+    last["five_reset"] = fmt(five_reset)
+    cfg["observations"] = [o for o in obs + [last] if o["pct"] > 0]
+    cfg["cloud_credit"] = {"limit": 250, "used": 61.4, "expires": fmt(now + timedelta(days=19)), "at": fmt(now)}
 
     out_dir = os.path.join(HERE, "_build")
     ur.set_out_dir(out_dir)
