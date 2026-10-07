@@ -12,7 +12,8 @@ weekly limit or wastes half of it.
 It reads the session logs Claude Code already writes to `~/.claude/projects/**/*.jsonl`. No account,
 no API key, no network. Pure Python, no dependencies.
 
-**[→ Open the live demo](https://thinkpload.github.io/claude-code-usage-dashboard/)** (invented data, the real page)
+**[→ Open the live demo](https://thinkpload.github.io/claude-code-usage-dashboard/)** (invented data, the real page) ·
+[the whole page in one image](docs/screenshot-full.png)
 
 ![The dashboard](docs/screenshot.png)
 
@@ -28,12 +29,18 @@ no API key, no network. Pure Python, no dependencies.
   `medium` = ×0.86; on Fable 5.1 alone `xhigh` costs ×1.56 of `high`, against ×1.14 across models.
 - **Am I going to hit the weekly limit?** A calibrated gauge, not a guess: `k = actual ÷ plan`, where
   the plan follows *when you actually work* rather than the calendar. It says things like "you will
-  hit the limit on Wednesday around 11:00 and be without it for 1 d 8 h."
+  hit the limit on Wednesday around 11:00 and be without it for 1 d 8 h." Ticks on the week's bar
+  count the 5-hour windows that still fit before the reset; a cloud-session credit gets a bar of its own.
+- **Is my plan the right size?** The paid month laid out week by week: each limit week against its
+  own limit, how it climbed hour by hour, what burned out unused, and a verdict — the plan fits, is
+  roomy, or sits at its ceiling and a bigger one pays off.
 - **Where did the time go?** Active hours per project, grouped three ways (main work / work misc /
   personal), by day, by month, and as a weekday × hour heatmap.
 - **What is the spend made of?** Tokens by model, by context size, by effort level, by skill text
   sitting in context, by subagent, by cold session start — each with a concrete suggestion.
 - **Did any of it ship?** Commits from your local repos overlaid on the same timeline.
+
+![Effort priced against high, and the paid month week by week](docs/screenshot-spend.png)
 
 ## Quick start
 
@@ -71,8 +78,9 @@ is guessing. This one calibrates itself against the real `/usage` figure instead
 On every run it fetches that figure the same way Claude Code's own `/usage` panel does: with your
 login token from `~/.claude/.credentials.json`, sent to `api.anthropic.com` and nowhere else. The
 token is never printed or copied anywhere new. What gets recorded is the "all models" percentage,
-the Fable percentage and the moment the week resets. A rerun within the hour replaces the last
-reading rather than adding another.
+the Fable percentage, the moment the week resets, the 5-hour window with its own reset, and the
+cloud-session credit when there is one. A rerun within the hour replaces the last reading rather
+than adding another.
 
 If you would rather it never touched the token, run with `--no-fetch` and feed the reading yourself
 from **claude.ai → Settings → Usage** (or `/usage` in Claude Code):
@@ -92,6 +100,14 @@ reading of its own follows its latest one, so a limit change nobody announced (a
 cannot pull the gauge away from what `/usage` shows. Until there is a
 reading, the gauge says so plainly instead of inventing a number.
 
+The weights are API prices, and the limit does not charge models quite the way the price list does:
+per unit, Fable loads it harder than its price says relative to Opus (about twice as hard on one
+real month). So the weight of a Fable unit is fitted to your readings as well, and every week is
+counted with it. Without that, a week that ran on Fable before its last reading and on Opus after it
+showed 101 % of a limit that was never hit. The weight stays at the API price until at least eight
+readings clearly agree on another one, so whole-percent rounding cannot invent it. The 5-hour window
+is sized from its own readings the same way and drawn as ticks on the week's bar.
+
 Plan changes are handled per plan: a Max reading never gets rescaled into a Pro budget, because
 "Pro = Max ÷ 5" was tested against real weeks and does not hold.
 
@@ -105,6 +121,7 @@ Plan changes are handled per plan: a Max reading never gets rescaled into a Pro 
 | **History** | daily snapshots accumulate in `history.json`, so the days Claude Code prunes after 30 days stay with you |
 | **Trend** | on the 30-day view each headline figure carries a week-over-week arrow: the last 7 days against the 7 before them; the work share moves in percentage points, the rest in per cent |
 | **Load units** | tokens × per-model weights (the API price list, used purely as weights) — the currency the limit gauge speaks |
+| **Paid month** | starts on the day the current plan began; every limit week lends it its budget pro rata to the days it spends there, so the month reads as a share of what the limit actually allowed |
 
 Run it at least monthly, or on a scheduler, or the pruning will outrun your history.
 
@@ -138,7 +155,9 @@ publish the page as an artifact.
 The page is one HTML file with no external scripts: it opens from `file://`, and it is equally happy
 as a claude.ai artifact. Mechanics and looks are deliberately separated — every colour and font lives
 in the `:root` block at the top of `claude_usage_dashboard/template.html`, and `<div class="bg">` is
-left empty for whatever background you want.
+left empty for whatever background you want. There is a light theme too, one click away on the page:
+
+![The light theme](docs/screenshot-light.png)
 
 - Hand `dashboard.design.html` (the same page on a small slice of data) to a design model, then
   `python -m claude_usage_dashboard --adopt the-result.html` puts the new look back into the
