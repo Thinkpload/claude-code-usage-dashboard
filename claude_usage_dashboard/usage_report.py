@@ -385,8 +385,9 @@ def fit_fable_load(rows):
     """One plan's readings [(units, Fable units, share of the limit)] -> (k, budget in load units). The weights are API
     prices, and the weekly limit prices Fable steeper than they do: per unit Fable loads it k times as hard as the other
     models, so the limit counts load units = units + (k - 1) x Fable units. k is the one on a 0.5..4 grid that makes the
-    readings agree best with one budget; it stays 1 below four readings or when it cuts their squared error by less
-    than a quarter, so a handful of readings, or ones with the same Fable share, do not make a factor up."""
+    readings agree best with one budget; it stays 1 below eight readings or when it cuts their squared error by less
+    than half, so a handful of readings, whole-percent rounding, or readings with the same Fable share do not make a
+    factor up."""
     def fit(k):
         load = [u + (k - 1) * uf for u, uf, _ in rows]
         # a pooled ratio: early-week readings (1-3 %, rounded to whole percent) weigh by their size, not equally
@@ -394,7 +395,7 @@ def fit_fable_load(rows):
         # the error in shares of the limit, not in units: a load unit grows with k, and the readings round to whole percent
         return sum((x / budget - s) ** 2 for x, (_, _, s) in zip(load, rows)), k, budget
     base, best = fit(1.0), min(fit(i / 20) for i in range(10, 81))
-    return best[1:] if len(rows) >= 4 and best[0] < 0.75 * base[0] else base[1:]
+    return best[1:] if len(rows) >= 8 and best[0] < 0.5 * base[0] else base[1:]
 
 
 def calibrate(history, cfg):
@@ -626,7 +627,7 @@ def build_data(history, cfg, now):
         "commits": commits,
         "git": {"repos": repo_count, "authors": cfg.get("git_authors", [])},
         "limits": {"calibrated": not budgets[plan_now]["estimated"], "plan_now": cfg["plans"][plan_now]["label"],
-                   "budgets": {cfg["plans"][pl]["label"]: {k: (round(v, 1) if isinstance(v, float) else v) for k, v in b.items()} for pl, b in budgets.items()},
+                   "budgets": {cfg["plans"][pl]["label"]: {k: (round(v, 2 if k == "fable_load" else 1) if isinstance(v, float) else v) for k, v in b.items()} for pl, b in budgets.items()},
                    "observations": cfg.get("observations", []), "week_reset": cfg.get("week_reset"),
                    "cloud_credit": cfg.get("cloud_credit"), "five_hour": calibrate_five(history, cfg, now)},
         "idle_minutes": cfg["idle_minutes"],

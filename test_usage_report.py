@@ -243,12 +243,11 @@ def test_fable_load_is_fitted_to_the_readings():
     hours = [0] * 24; hours[10] = 3600
     day = lambda models: {"P": {"sec": 3600, "hours": hours, "msgs": 0, "sessions": [], "models": models}}
     mixed = {"claude-opus-5": opus, "claude-fable-5-1": fable}                                    # 75 units, a load of 125
-    hist = {"days": {"2026-09-11": day({"claude-opus-5": opus}), "2026-09-12": day({"claude-opus-5": opus}),
-                     "2026-09-13": day({"claude-opus-5": opus}), "2026-09-18": day(mixed), "2026-09-19": day(mixed),
-                     "2026-09-21": day({"claude-opus-5": opus}), "2026-09-22": day({"claude-opus-5": opus})}}
-    # a limit of 1000 load units: the Opus week reads 2.5 and 7.5 %, the mixed one 12.5 and 25 %
-    cfg["observations"] = [{"at": "2026-09-11 12:00", "pct": 2.5}, {"at": "2026-09-13 12:00", "pct": 7.5},
-                           {"at": "2026-09-18 12:00", "pct": 12.5}, {"at": "2026-09-19 12:00", "pct": 25}]
+    hist = {"days": {**{f"2026-09-{d}": day({"claude-opus-5": opus}) for d in ("04", "05", "06", "11", "12", "13", "21", "22")},
+                     "2026-09-18": day(mixed), "2026-09-19": day(mixed)}}
+    # a limit of 1000 load units: two Opus weeks read 2.5, 5 and 7.5 % each, the mixed one 12.5 and 25 %
+    cfg["observations"] = [{"at": f"2026-09-{d} 12:00", "pct": p} for d, p in (("04", 2.5), ("05", 5), ("06", 7.5),
+                           ("11", 2.5), ("12", 5), ("13", 7.5), ("18", 12.5), ("19", 25))]
     b = ur.calibrate(hist, cfg)["max5"]
     assert b["fable_load"] == 2 and abs(b["all"] - 1000) < 1e-6, b
     weeks, _ = ur.build_weeks(hist, cfg, ur.parse_local("2026-09-25 12:00", cfg))
@@ -257,16 +256,17 @@ def test_fable_load_is_fitted_to_the_readings():
     # 250 load units at 25 %, then 50 of Opus: 30 %, not the 200 / 600 = 33.3 % of the week's Fable-heavy start
     assert mixed_week["pct"] == 30 and mixed_week["units"] == 200, mixed_week
     assert abs(mixed_week["budget"] - 200 / 0.3) < 0.01, mixed_week                             # in units at the week's mix: units / budget = pct
-    # the paid month (the 1st to the 30th) counts in load units too: 75 + 300 of them against two full weeks and the
-    # running one's 148 h in September at 1000, not the units against budgets taken at each week's own mix
+    # the paid month (the 1st to the 30th) counts in load units too: 75 + 75 + 300 of them against three full weeks and
+    # the running one's 148 h in September at 1000, not the units against budgets taken at each week's own mix
     sep = ur.build_billing_months(hist, weeks, cfg, ur.parse_local("2026-09-25 12:00", cfg))[0]
-    assert sep["pct"] == round(100 * 375 / (2000 + 1000 * 148 / 168), 1) and sep["budget_units"] == 275, sep
-    # three readings are too few to tell Fable's weight from noise: k stays at the API prices
+    assert sep["pct"] == round(100 * 450 / (3000 + 1000 * 148 / 168), 1) and sep["budget_units"] == 350, sep
+    # seven readings are too few to tell Fable's weight from noise: k stays at the API prices
     cfg["observations"] = cfg["observations"][1:]
     assert ur.calibrate(hist, cfg)["max5"]["fable_load"] == 1
     # readings that all carry the same Fable share cannot tell k apart either, whole-percent rounding or not
-    same = {"days": {f"2026-09-{d}": day(mixed) for d in ("18", "19", "20", "21")}}                # 75, 150, 225, 300 units
-    cfg["observations"] = [{"at": f"2026-09-{d} 12:00", "pct": p} for d, p in (("18", 8), ("19", 15), ("20", 23), ("21", 30))]
+    same = {"days": {f"2026-09-{d}": day(mixed) for d in range(18, 26)}}                           # 75 units a day
+    cfg["observations"] = [{"at": f"2026-09-{d} 12:00", "pct": p} for d, p in
+                           zip(range(18, 26), (8, 15, 22, 30, 38, 45, 52, 8))]                        # 7.5 % a day, a new week on the 25th
     assert ur.calibrate(same, cfg)["max5"]["fable_load"] == 1
 
 
