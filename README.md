@@ -39,6 +39,11 @@ no API key, no network. Pure Python, no dependencies.
 - **What is the spend made of?** Tokens by model, by context size, by effort level, by skill text
   sitting in context, by subagent, by cold session start — each with a concrete suggestion.
 - **Did any of it ship?** Commits from your local repos overlaid on the same timeline.
+- **How much of me is going into this, and when do I rest?** A "Your time and rest" card first on the
+  board: your own time at Claude with parallel sessions merged, how long Claude was busy, your
+  longest stretch without a break and the night hours. Two tips in the advice block point at manual
+  work: requests you keep retyping and short "continue"-style nudges. An optional `--break-check` hook
+  (`UserPromptSubmit`) reminds you to stand up after 90 minutes without a break.
 
 ![Effort priced against high, and the paid month week by week](docs/screenshot-spend.png)
 

@@ -1,8 +1,11 @@
 """Core checks: python test_usage_report.py"""
+import contextlib
+import hashlib
+import io
 import json
 import os
 import tempfile
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from claude_usage_dashboard import usage_report as ur
 
@@ -112,7 +115,7 @@ def test_home_slug_matches_claude_code_encoding():
 def test_merge_keeps_fuller_snapshot():
     hist = {"days": {"2026-09-01": {"P": {"sec": 100, "hours": [0] * 24, "msgs": 3, "sessions": ["a", "b"], "ins": ur.new_ins(),
                                           "models": {"claude-opus-5": {"calls": 5, "input": 0, "cache_create": 0, "cache_read": 0, "output": 0, "thinking": 0}}}}}}
-    fresh = {"2026-09-01": {"P": {"sec": 40, "hours": [0] * 24, "msgs": 1, "sessions": {"b"}, "ins": ur.new_ins(),
+    fresh = {"2026-09-01": {"P": {"sec": 40, "hours": [0] * 24, "msgs": 1, "mine": 0, "nudges": 0, "prompts": {}, "sessions": {"b"}, "ins": ur.new_ins(),
                                   "models": {"claude-opus-5": {"calls": 2, "input": 0, "cache_create": 0, "cache_read": 0, "output": 0, "thinking": 0}}}}}
     ur.merge(hist, fresh)
     assert hist["days"]["2026-09-01"]["P"]["sec"] == 100, "once the logs are pruned the older, fuller snapshot stays"
@@ -336,6 +339,176 @@ def test_refresh_button_only_on_local_page():
     assert '"refresh_url": "claude-usage://refresh"' in local
     assert '"refresh_url": null' in shared and "claude-usage://refresh\"" not in shared
     assert os.path.abspath(ur.__file__) in cmd and f'--out-dir "{tmp}"' in cmd, cmd
+
+
+def say(ts, text, **extra):
+    return dict({"type": "user", "timestamp": ts, "message": {"content": text}}, **extra)
+
+
+def test_presence_merges_parallel_sessions_and_counts_your_time():
+    """Two sessions over the same minutes: Claude busy counts them once; your time is the gaps between your own
+    messages across both sessions, up to break_minutes."""
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [say("2026-09-01T12:00:00Z", "first request to the model"), asst("2026-09-01T12:05:00Z", "r1"),
+                                         say("2026-09-01T12:10:00Z", "go"), asst("2026-09-01T12:10:30Z", "r2")])
+        write_session(root, "c--Users-ann-code-acme-web", "s2",
+                      [say("2026-09-01T12:02:00Z", "a parallel request elsewhere"), asst("2026-09-01T12:08:00Z", "r3")])
+        pres = {}
+        days = ur.scan(CFG, root, presence=pres)
+    p = pres["2026-09-01"]
+    assert p["busy"] == 630, f"12:00-12:10:30 once, not 630 + 360; got {p['busy']}"
+    assert p["you"] == 600 and p["longest"] == 600 and p["night"] == 0, p
+    v = days["2026-09-01"]["acme-api"]
+    assert v["mine"] == 2 and v["nudges"] == 1, v
+    assert v["prompts"] == {"first request to the model": 1}, v["prompts"]
+
+
+def test_presence_skips_what_is_not_you_and_splits_at_midnight():
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [
+            say("2026-09-01T20:50:00Z", "late request number one"),                       # 23:50 local
+            say("2026-09-01T20:55:00Z", "[Request interrupted by user]"),
+            say("2026-09-01T20:56:00Z", "<command-name>/clear</command-name>"),
+            say("2026-09-01T20:57:00Z", "subagent prompt text here", isSidechain=True),
+            say("2026-09-01T20:58:00Z", "scripted prompt from claude -p", entrypoint="sdk-cli"),
+            say("2026-09-01T21:05:00Z", "  Late   REQUEST number one  "),                 # 00:05, 15 min on: one stretch
+            say("2026-09-01T21:40:00Z", "after a long break"),                            # 35 min on: a break
+        ])
+        pres = {}
+        days = ur.scan(CFG, root, presence=pres)
+    assert pres["2026-09-01"] == {"you": 600, "busy": 600, "longest": 900, "night": 0}, pres["2026-09-01"]
+    assert pres["2026-09-02"] == {"you": 300, "busy": 300, "longest": 0, "night": 300}, pres["2026-09-02"]
+    a, b = days["2026-09-01"]["acme-api"], days["2026-09-02"]["acme-api"]
+    assert (a["mine"], b["mine"]) == (1, 2), "interruptions, command tags, subagents and claude -p are not yours"
+    assert a["prompts"] == b["prompts"] == {"late request number one": 1}, (a["prompts"], b["prompts"])
+    assert a["nudges"] == b["nudges"] == 0
+
+
+def test_messages_typed_in_vs_code_are_yours():
+    """The VS Code extension puts the open file or the selection in front of what you typed, and a paste arrives
+    wrapped in a tag: still your message, and the request key is your words."""
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [
+            say("2026-09-01T09:00:00Z", [{"type": "text", "text": "<ide_opened_file>The user opened the file a.py in the IDE.</ide_opened_file>"},
+                                         {"type": "text", "text": "fix the login bug please"}]),
+            say("2026-09-01T09:05:00Z", "<ide_selection>The user selected lines 1-9</ide_selection>\nwhy is this slow"),
+            say("2026-09-01T09:08:00Z", '<pasted_content id="1">a long stack trace here</pasted_content> what does this mean'),
+        ])
+        days = ur.scan(CFG, root)
+    v = days["2026-09-01"]["acme-api"]
+    assert v["mine"] == 3, v["mine"]
+    assert v["prompts"] == {"fix the login bug please": 1, "a long stack trace here what does this mean": 1}, v["prompts"]
+
+
+def test_waiting_for_claude_is_your_time_but_not_overnight_runs():
+    """A break is quiet after Claude's last move, not after your last message: 40 minutes of watching a run and
+    answering 5 minutes after it ends is one stretch. A gap over an hour is never counted, however busy Claude was."""
+    run = [asst(f"2026-09-01T07:{m:02d}:00Z", f"r{m}") for m in range(5, 45, 5)]          # Claude busy 10:05-10:40 local
+    night = [asst(f"2026-09-01T{h:02d}:{m:02d}:00Z", f"n{h}{m}") for h in (9, 10) for m in range(0, 60, 5)]
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [say("2026-09-01T07:00:00Z", "start the long refactor run")] + run +
+                      [say("2026-09-01T07:45:00Z", "looks good, now the tests"),             # 5 min after the run: one stretch
+                       say("2026-09-01T09:00:00Z", "kick off the overnight batch")] + night +
+                      [say("2026-09-01T11:00:00Z", "morning, what did it do")])              # 2 h on, Claude busy all along
+        pres = {}
+        ur.scan(CFG, root, presence=pres)
+    p = pres["2026-09-01"]
+    assert p["you"] == 2700 and p["longest"] == 2700, p
+
+
+def test_merge_keeps_fuller_presence():
+    h = ur.merge({"days": {}}, {}, {"2026-09-01": {"you": 100.4, "busy": 500, "longest": 100, "night": 0}})
+    h = ur.merge(h, {}, {"2026-09-01": {"you": 50, "busy": 200, "longest": 50, "night": 0}})
+    assert h["presence"]["2026-09-01"] == {"you": 100, "busy": 500, "longest": 100, "night": 0}, h["presence"]
+    assert "presence" not in ur.merge({"days": {}}, {}), "no presence passed, none written"
+
+
+def test_prompt_text_stays_on_the_local_page():
+    """Your words go to dashboard.html only; the artifact and the design sample get a hash per request, so the
+    repeat counts still add up."""
+    text = "deploy the staging build please"
+    data = {"refresh_url": None, "today": "2026-09-20", "commits": {}, "projects": {"acme-api": "core"}, "weeks": [],
+            "billing_months": [], "presence": {},
+            "days": [{"d": "2026-09-20", "p": {"acme-api": {"sec": 1, "prompts": {text: 4}}}}]}
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            local, shared = (open(p, encoding="utf8").read() for p in ur.render(data)[0])
+            design = open(os.path.join(tmp, "dashboard.design.html"), encoding="utf8").read()
+        finally:
+            ur.set_out_dir(old)
+    key = "#" + hashlib.sha1(text.encode("utf8")).hexdigest()[:8]
+    assert text in local
+    for page in (shared, design):
+        assert text not in page and f'"{key}": 4' in page
+
+
+def test_prompt_text_cannot_break_out_of_the_script_block():
+    """A request goes into JSON inside a <script>; a raw `<!--` plus `<script` would put the HTML parser into its double-escaped
+    state, the template's `</script>` would stop closing the block and the page's JS would die."""
+    text = "why does <!-- <script src=x> break the page"
+    data = {"refresh_url": None, "today": "2026-09-20", "commits": {}, "projects": {"acme-api": "core"}, "weeks": [],
+            "billing_months": [], "presence": {},
+            "days": [{"d": "2026-09-20", "p": {"acme-api": {"sec": 1, "prompts": {text: 1}}}}]}
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            local = open(ur.render(data)[0][0], encoding="utf8").read()
+        finally:
+            ur.set_out_dir(old)
+    assert "\\u003c!-- \\u003cscript src=x>" in local
+    assert "<!-- <script" not in local and "<script src=x>" not in local
+
+
+def test_break_check_reminds_after_a_long_stretch():
+    """Prompts every 10 min: a reminder at 90 min, again no sooner than 30 min later; a 20-min pause starts afresh;
+    a broken state file is not an error."""
+    cfg = dict(CFG, break_minutes=15, remind_after_minutes=90)
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            seen = {hm: ur.break_check(cfg, ur.parse_local("2026-09-01 " + hm, cfg)) for hm in
+                    ["09:00", "09:10", "09:20", "09:30", "09:40", "09:50", "10:00", "10:10", "10:20", "10:30", "10:40", "10:50", "11:00", "11:20"]}
+            with open(os.path.join(tmp, "break.json"), "w") as f:
+                f.write("{")
+            broken = ur.break_check(cfg, ur.parse_local("2026-09-01 12:00", cfg))
+        finally:
+            ur.set_out_dir(old)
+    assert [hm for hm, m in seen.items() if m] == ["10:30", "11:00"], seen
+    assert "1 h 30 min" in seen["10:30"] and "2 h 00 min" in seen["11:00"], seen
+    assert broken is None
+
+
+def test_break_check_flag_prints_a_hook_message():
+    old = ur.OUT_DIR
+    buf = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            t = datetime.now(timezone.utc)
+            ur.save_json(os.path.join(tmp, "break.json"), {"start": (t - timedelta(hours=2)).isoformat(), "last": (t - timedelta(minutes=5)).isoformat()})
+            with contextlib.redirect_stdout(buf):
+                ur.main(["--break-check", "--out-dir", tmp])
+        finally:
+            ur.set_out_dir(old)
+    out = json.loads(buf.getvalue())
+    assert "without a break" in out["systemMessage"], out
+
+
+def test_break_check_never_raises():
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            ur.save_json(os.path.join(tmp, "break.json"), {"start": "2026-09-01T10:00", "last": "2026-09-01T10:00"})
+            ur.main(["--break-check", "--out-dir", tmp])
+            with open(os.path.join(tmp, "break.json")) as f:
+                assert datetime.fromisoformat(json.load(f)["last"]).tzinfo is not None, "the state file starts afresh"
+        finally:
+            ur.set_out_dir(old)
 
 
 if __name__ == "__main__":

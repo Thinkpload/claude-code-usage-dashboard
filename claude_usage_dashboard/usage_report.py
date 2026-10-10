@@ -15,16 +15,16 @@ renders dashboard.html + dashboard.artifact.html.
 From a checkout, with nothing installed: python -m claude_usage_dashboard
 """
 import argparse
+import bisect
 import calendar
 import fnmatch
 import glob
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
@@ -61,6 +61,10 @@ def set_out_dir(path):
 DEFAULT_CONFIG = {
     "tz_offset_hours": 0,
     "idle_minutes": 10,
+    # Your time: a pause between your own messages longer than this is a break; the --break-check hook
+    # reminds you after remind_after_minutes without one.
+    "break_minutes": 15,
+    "remind_after_minutes": 90,
     # Dashboard language: "en" is the template itself, anything else needs i18n/<lang>.json.
     "lang": "en",
     "strip_prefixes": [home_slug() + "-", home_slug()],
@@ -160,6 +164,7 @@ def new_ins():
 
 def new_project_day():
     return {"sec": 0.0, "hours": [0.0] * 24, "msgs": 0, "sessions": set(), "ins": new_ins(),
+            "mine": 0, "nudges": 0, "prompts": defaultdict(int),
             "models": defaultdict(lambda: dict.fromkeys(("calls",) + TOKEN_FIELDS, 0))}
 
 
@@ -172,10 +177,75 @@ def text_size(content):
     return 0
 
 
-def scan(cfg, projects_dir=PROJECTS_DIR):
-    """day -> project -> {sec, hours[24], msgs, sessions, models}. One API call = one requestId."""
+def prompt_text(content):
+    """Text of a user message: the string itself, or its text blocks joined. What the IDE puts in front (the open
+    file, the selection) is dropped and a paste is unwrapped, so what is left is what you typed."""
+    if isinstance(content, list):
+        content = " ".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+    text = content if isinstance(content, str) else ""
+    text = re.sub(r"^(\s*<ide_[a-z_]+>.*?</ide_[a-z_]+>)+", "", text, flags=re.S)
+    return re.sub(r"</?pasted_content[^>]*>", "", text)
+
+
+def is_yours(r, text):
+    """A message you typed: not a subagent's prompt, not a claude -p run, not an interruption or a command tag."""
+    return bool(text) and not r.get("isSidechain") and r.get("entrypoint") != "sdk-cli" \
+        and not text.startswith(("<", "[Request interrupted by user"))
+
+
+def merge_intervals(pairs):
+    """(start, end) pairs -> disjoint [start, end] runs, sorted; touching runs join."""
+    out = []
+    for a, b in sorted(pairs):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return out
+
+
+def split_by_day(a, b):
+    """(start, end) -> (day, start, end) pieces cut at local midnight."""
+    while a.date() < b.date():
+        mid = datetime.combine(a.date() + timedelta(days=1), datetime.min.time(), tzinfo=a.tzinfo)
+        yield a.strftime("%Y-%m-%d"), a, mid
+        a = mid
+    yield a.strftime("%Y-%m-%d"), a, b
+
+
+def presence_days(busy, yours, cfg, acts=()):
+    """Per day: you = gaps between your own messages, all sessions merged, unless the gap holds a break: more than
+    break_minutes of quiet after Claude's last move (acts) before your next message, or over an hour in all, so an
+    overnight run is not you; busy = any session running, parallel ones counted once; longest = your longest
+    stretch without a break (to the day it started); night = your time at 00-06."""
+    out = defaultdict(lambda: {"you": 0.0, "busy": 0.0, "longest": 0.0, "night": 0.0})
+    for a, b in merge_intervals(busy):
+        for d, x, y in split_by_day(a, b):
+            out[d]["busy"] += (y - x).total_seconds()
+    yours, acts = sorted(yours), sorted(acts)
+    brk = cfg["break_minutes"] * 60
+
+    def held(a, b):        # you were there from a to b: Claude kept you busy until a short pause before b
+        i = bisect.bisect_left(acts, b) - 1
+        last = acts[i] if i >= 0 and acts[i] > a else a
+        return (b - a).total_seconds() <= 3600 and (b - last).total_seconds() <= brk
+
+    for a, b in merge_intervals([(a, b) for a, b in zip(yours, yours[1:]) if held(a, b)]):
+        start = out[a.strftime("%Y-%m-%d")]
+        start["longest"] = max(start["longest"], (b - a).total_seconds())
+        for d, x, y in split_by_day(a, b):
+            out[d]["you"] += (y - x).total_seconds()
+            dawn = x.replace(hour=6, minute=0, second=0, microsecond=0)
+            out[d]["night"] += max(0.0, (min(y, dawn) - x).total_seconds())
+    return dict(out)
+
+
+def scan(cfg, projects_dir=PROJECTS_DIR, presence=None):
+    """day -> project -> {sec, hours[24], msgs, sessions, models}. One API call = one requestId.
+    A dict passed as presence is filled with presence_days() over every project."""
     days = defaultdict(lambda: defaultdict(new_project_day))
     idle = timedelta(minutes=cfg["idle_minutes"])
+    busy, yours, acts = [], [], []  # every session's active gaps; the moments of your own messages; of every record
     for pd in sorted(glob.glob(os.path.join(projects_dir, "*"))):
         if not os.path.isdir(pd):
             continue
@@ -199,6 +269,7 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
                         continue
                     dt = parse_ts(t, cfg)
                     stamps[sid].append(dt)
+                    acts.append(dt)
                     d = dt.strftime("%Y-%m-%d")
                     typ = r.get("type")
                     if typ == "user":
@@ -207,6 +278,15 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
                             loaded[pending.pop(r["sourceToolUseID"])] = text_size(c)
                         elif not r.get("isMeta") and not (isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c)):
                             days[d][name]["msgs"] += 1
+                            t = prompt_text(c).strip()
+                            if is_yours(r, t):
+                                yours.append(dt)
+                                pdv = days[d][name]
+                                pdv["mine"] += 1
+                                if not t.startswith("/") and len(t) <= 15:
+                                    pdv["nudges"] += 1
+                                elif not t.startswith("/") and len(t) >= 20:
+                                    pdv["prompts"][re.sub(r"\s+", " ", t.lower())[:80]] += 1
                     elif typ == "assistant":
                         m = r.get("message", {})
                         for b in m.get("content") or []:
@@ -255,6 +335,7 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
                     pdv = days[a.strftime("%Y-%m-%d")][name]
                     pdv["sec"] += g
                     pdv["hours"][a.hour] += g
+                    busy.append((a, b))
             for dt in {s.strftime("%Y-%m-%d") for s in st}:
                 days[dt][name]["sessions"].add(sid)
         for sid, si in sess.items():
@@ -262,12 +343,15 @@ def scan(cfg, projects_dir=PROJECTS_DIR):
             ins["sessions"] += 1
             ins["sessions_short"] += si["calls"] < 3
             ins["first_call_units"] += si["first_units"]
+    if presence is not None:
+        presence.update(presence_days(busy, yours, cfg, acts))
     return days
 
 
-def merge(history, fresh):
+def merge(history, fresh, presence=None):
     """Merge a scan into the history: for each (day, project) keep the fuller snapshot. Logs only
-    grow while they live and vanish whole when pruned, so "more calls" means "more complete"."""
+    grow while they live and vanish whole when pruned, so "more calls" means "more complete".
+    Presence per day follows the same rule by its busy seconds."""
     days = history.setdefault("days", {})
     for d, projects in fresh.items():
         hd = days.setdefault(d, {})
@@ -281,10 +365,17 @@ def merge(history, fresh):
             ins["effort_cells"] = {e: {m: {b: [c[0], round(c[1], 4), c[2]] for b, c in bs.items()} for m, bs in ms.items()}
                                    for e, ms in ins["effort_cells"].items()}
             snap = {"sec": int(v["sec"]), "hours": [int(h) for h in v["hours"]], "msgs": v["msgs"],
+                    "mine": v["mine"], "nudges": v["nudges"], "prompts": dict(v["prompts"]),
                     "sessions": sorted(v["sessions"]), "models": models, "ins": ins}
             old = hd.get(name)
             if old is None or sum(x["calls"] for x in models.values()) >= sum(x["calls"] for x in old["models"].values()):
                 hd[name] = snap
+    if presence:
+        pres = history.setdefault("presence", {})
+        for d, p in presence.items():
+            snap = {k: int(x) for k, x in p.items()}
+            if d not in pres or snap["busy"] >= pres[d]["busy"]:
+                pres[d] = snap
     return history
 
 
@@ -630,7 +721,9 @@ def build_data(history, cfg, now):
                    "budgets": {cfg["plans"][pl]["label"]: {k: (round(v, 2 if k == "fable_load" else 1) if isinstance(v, float) else v) for k, v in b.items()} for pl, b in budgets.items()},
                    "observations": cfg.get("observations", []), "week_reset": cfg.get("week_reset"),
                    "cloud_credit": cfg.get("cloud_credit"), "five_hour": calibrate_five(history, cfg, now)},
+        "presence": history.get("presence", {}),
         "idle_minutes": cfg["idle_minutes"],
+        "break_minutes": cfg["break_minutes"],
         "config_path": CONFIG_PATH,
         "refresh_url": REFRESH_URL if refresh_registered() else None,
     }
@@ -683,6 +776,7 @@ def trim_for_design(data, days=10, projects=4):
     d["weeks"] = [w for w in data["weeks"] if w["end"] >= first]
     d["months"] = sorted({day["d"][:7] for day in d["days"]}, reverse=True)
     d["billing_months"] = [b for b in data["billing_months"] if b["end"] >= first]
+    d["presence"] = {k: v for k, v in data.get("presence", {}).items() if k >= first}
     return d
 
 
@@ -737,13 +831,20 @@ def localize(tpl, lang):
     return tpl, missing
 
 
+def hide_prompts(data):
+    """The published copies keep the repeat counts but not your words: each request becomes #<8 hex of its sha1>."""
+    key = lambda s: "#" + hashlib.sha1(s.encode("utf8")).hexdigest()[:8]
+    return dict(data, days=[{"d": day["d"], "p": {n: dict(v, prompts={key(k): c for k, c in (v.get("prompts") or {}).items()})
+                                                  for n, v in day["p"].items()}} for day in data["days"]])
+
+
 def render(data, lang="en"):
     with open(TEMPLATE_PATH, encoding="utf8") as f:
         tpl = f.read()
     tpl, missing = localize(tpl, lang)
     head, body = tpl.split("<!--BODY-->", 1)
-    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    shared = body.replace("/*__DATA__*/null", json.dumps(dict(data, refresh_url=None), ensure_ascii=False).replace("</", "<\\/"))  # a published page cannot reach this machine
+    payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
+    shared = body.replace("/*__DATA__*/null", json.dumps(dict(hide_prompts(data), refresh_url=None), ensure_ascii=False).replace("<", "\\u003c"))  # a published page cannot reach this machine, nor carry your words
     body = body.replace("/*__DATA__*/null", payload)
     full = (f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">' + head + "</head><body>" + body + "</body></html>")
@@ -753,7 +854,7 @@ def render(data, lang="en"):
             f.write(content)
     save_json(os.path.join(OUT_DIR, "data.json"), data)  # the same data on its own, for a hand-written template
     with open(os.path.join(OUT_DIR, "dashboard.design.html"), "w", encoding="utf8") as f:  # sample for Claude Design
-        f.write(full.replace(payload, json.dumps(trim_for_design(data), ensure_ascii=False).replace("</", "<\\/")))
+        f.write(full.replace(payload, json.dumps(trim_for_design(hide_prompts(data)), ensure_ascii=False).replace("<", "\\u003c")))
     return paths, missing
 
 
@@ -827,6 +928,7 @@ def fetch_usage(cfg):
     tok = (load_json(CREDENTIALS_PATH, {}).get("claudeAiOauth") or {}).get("accessToken")
     if not tok:
         raise RuntimeError(f"no login token in {CREDENTIALS_PATH}")
+    import urllib.error, urllib.request  # only here: the hook must not pay for them
     req = urllib.request.Request(USAGE_URL, headers={"Authorization": "Bearer " + tok,
                                                      "anthropic-beta": "oauth-2025-04-20", "Accept": "application/json"})
     try:
@@ -853,6 +955,29 @@ def record_observation(cfg, obs, now):
         obs_list.append(obs)
 
 
+def break_check(cfg, now):
+    """UserPromptSubmit hook: the stretch of your prompts without a break, across all sessions (break.json in the
+    data folder). Past remind_after_minutes returns a reminder, at most once every 30 min; a broken state file
+    simply starts a new stretch."""
+    path = os.path.join(OUT_DIR, "break.json")
+    try:
+        st = {k: datetime.fromisoformat(v) for k, v in load_json(path, {}).items() if v}
+        if any(v.tzinfo is None for v in st.values()):
+            raise ValueError("naive timestamp")
+    except (ValueError, TypeError, AttributeError):
+        st = {}
+    if "start" not in st or "last" not in st or (now - st["last"]).total_seconds() > cfg["break_minutes"] * 60:
+        st["start"] = now
+    st["last"] = now
+    run = int((now - st["start"]).total_seconds()) // 60
+    msg = None
+    if run >= cfg["remind_after_minutes"] and ("nudged" not in st or (now - st["nudged"]).total_seconds() >= 30 * 60):
+        msg = f"You've been at it for {run // 60} h {run % 60:02d} min without a break - stand up for 10 minutes."
+        st["nudged"] = now
+    save_json(path, {k: v.isoformat() for k, v in st.items()})
+    return msg
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--observe", type=float, metavar="PCT", help="/usage reading by hand: percent of the week (all models); without it the reading is fetched")
@@ -866,12 +991,22 @@ def main(argv=None):
     ap.add_argument("--out-dir", metavar="DIR", help=f"data directory: config, history, rendered pages (default: {OUT_DIR})")
     ap.add_argument("--register-refresh", action="store_true", help="Windows: register claude-usage:// so the refresh button on the dashboard rebuilds it")
     ap.add_argument("--lang", help="dashboard language; needs i18n/<lang>.json (default: config 'lang', else en)")
+    ap.add_argument("--break-check", action="store_true", help="UserPromptSubmit hook: remind to take a break after remind_after_minutes without one; nothing else runs")
     args = ap.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     if args.out_dir:
         set_out_dir(args.out_dir)
+    if args.break_check:  # a hook: never blocks the prompt, whatever goes wrong
+        try:
+            cfg = load_config()
+            msg = break_check(cfg, datetime.now(tz(cfg)))
+            if msg:
+                print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
+        except Exception:
+            pass
+        return
     cfg = load_config()
     now = datetime.now(tz(cfg))
     if args.register_refresh:
@@ -906,7 +1041,8 @@ def main(argv=None):
     if changed:
         save_json(CONFIG_PATH, cfg)
 
-    history = merge(load_json(HISTORY_PATH, {"days": {}}), scan(cfg))
+    pres = {}
+    history = merge(load_json(HISTORY_PATH, {"days": {}}), scan(cfg, presence=pres), pres)
     history["updated"] = now.isoformat()
     save_json(HISTORY_PATH, history)
     data = build_data(history, cfg, now)

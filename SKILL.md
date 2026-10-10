@@ -58,6 +58,7 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 | `token_weights` | per-model token weights (= API prices), used only for the limit |
 | `git_roots`, `git_authors` | where to look for local repos (`.git` no deeper than `depth`) and whose commits count (patterns for `git --author`); this is the "GitHub activity" on the dashboard |
 | `idle_minutes` | the gap after which time stops counting as active (10) |
+| `break_minutes`, `remind_after_minutes` | more than `break_minutes` (15) of quiet after Claude's last move before your next message is a break; the `--break-check` hook reminds you after `remind_after_minutes` (90) without one |
 | `lang` | dashboard language; `ru` needs `i18n/ru.json` |
 
 ## A look of your own (Claude Design)
@@ -75,7 +76,7 @@ template, `<div class="bg">` is reserved for an animated background, and the mar
   restores the hooks (`<!--BODY-->` and `const DATA = /*__DATA__*/null;`), saves the old template
   beside it as `template.bak.html`, and rebuilds. If the result breaks the charts, put
   `template.bak.html` back.
-- A page from scratch goes on top of `data.json`; the fields are in `docs/data-contract.md`.
+- A page from scratch goes on top of `data.json`; the fields are in `docs/data-contract.md`. Before publishing it, hash or drop the `prompts` keys (raw prompt text), as `hide_prompts()` does for the artifact.
 - Translations live in `i18n/<lang>.json` as a flat map from the template's English strings. After a
   design pass the script reports entries that no longer match, which are the ones to update.
 
@@ -90,6 +91,16 @@ In between, the dashboard's **refresh** button rebuilds it on demand. It needs a
 `claude-usage://` scheme to run this script windowless on the same data folder. Rerun it after moving
 the checkout or Python. The button is only on the local `dashboard.html`, never in the artifact. The scheduler does
 not publish the artifact; that is step 3, from a session.
+
+## Break reminder (hook)
+
+`--break-check` is a `UserPromptSubmit` hook: it notes each prompt in `break.json` in the data folder, shared by all
+sessions, and once you have gone `remind_after_minutes` (90) without a pause longer than `break_minutes` (15) it
+shows a reminder, at most every 30 min. It never blocks a prompt and does not scan the logs. In `~/.claude/settings.json`:
+
+```json
+{"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "claude-usage-dashboard --break-check"}]}]}}
+```
 
 ## Pitfalls
 

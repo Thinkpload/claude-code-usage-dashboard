@@ -327,6 +327,54 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .advice li .tag.ok{background:color-mix(in srgb,var(--accent-2) 12%,var(--surface));color:var(--accent-2)}
 .advice li b{color:var(--ink);font-weight:700}
 .advice li .how{color:var(--ink-2)}
+/* your time and rest: a verdict in the state's colour, today against an 8-hour day, the week against the same norm */
+.rest{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:26px 44px;--st:var(--accent-2)}
+.rest[data-st="warn"]{--st:var(--warn)}
+.rest[data-st="bad"]{--st:var(--bad)}
+@media (max-width:760px){.rest{grid-template-columns:minmax(0,1fr)}}
+.rest-say{display:flex;flex-direction:column;gap:10px}
+.rest-say h3{margin:0;font-size:clamp(26px,2.8vw,34px);line-height:1.06;font-weight:800;letter-spacing:-.025em;color:var(--st);text-wrap:balance}
+.rest-say p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.5;max-width:52ch}
+.rest-say ul{margin:0;padding:0;list-style:none;display:grid;gap:5px;font-size:12.5px;color:var(--ink-2)}
+.rest-say li{display:flex;gap:9px;align-items:baseline}
+.rest-say li::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--warn);transform:translateY(-1px)}
+.rest-say li[data-st="bad"]::before{background:var(--bad)}
+.rest-today{padding-top:14px;display:grid;gap:8px}
+.rest-read{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px;font-size:12px;color:var(--muted)}
+.rest-read b{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--ink);margin-right:8px}
+.rest-track{position:relative;height:14px;border-radius:999px;background:var(--surface-2)}
+.rest-track i{position:absolute;top:0;bottom:0;left:0;border-radius:999px;background:var(--accent-2)}
+.rest-track i.over{border-radius:0 999px 999px 0;background:repeating-linear-gradient(-45deg,var(--bad) 0 5px,color-mix(in srgb,var(--bad) 45%,var(--surface-2)) 5px 9px)}
+.rest-track u{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
+.rest-busy{position:relative;height:3px;border-radius:2px;background:var(--surface-2)}
+.rest-busy i{position:absolute;inset:0 auto 0 0;border-radius:2px;background:color-mix(in srgb,var(--accent-2) 50%,var(--surface-2))}
+.rest-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);position:relative;height:14px}
+.rest-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.rest-scale span:first-child{transform:none}
+.rest-wk{display:flex;flex-direction:column;gap:10px}
+.rest-wk .rest-read b{font-size:20px}
+.rest-cols{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;height:132px}
+.rest-cols>div{position:relative;border-radius:7px;background:var(--surface-2);overflow:hidden}
+.rest-cols>div.later{opacity:.45}
+.rest-cols>div i{position:absolute;left:0;right:0}
+.rest-cols i.day{background:var(--accent-2)}
+.rest-cols i.night{background:var(--r1)}
+.rest-cols i.over{background:var(--bad)}
+.rest-norm{position:absolute;left:-4px;right:-4px;border-top:1.5px dashed var(--ink-2);pointer-events:none}
+.rest-norm em{position:absolute;right:0;top:-18px;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface);padding:0 4px}
+.rest-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center}
+.rest-days b{color:var(--ink);font-weight:600}
+.rest-pair{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;padding-top:14px;border-top:1px solid var(--hair)}
+@media (max-width:520px){.rest-pair{grid-template-columns:1fr}}
+.rest-pair>div{display:grid;gap:9px;align-content:start;font-size:12px;color:var(--ink-2)}
+.rest-pair b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.rest-stretch{position:relative;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--surface-2) 0 var(--a),color-mix(in srgb,var(--warn) 35%,var(--surface-2)) var(--a) var(--b),color-mix(in srgb,var(--bad) 45%,var(--surface-2)) var(--b))}
+.rest-stretch i{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px var(--surface)}
+.rest-stretch i.wk{background:var(--surface);border:2px solid var(--ink)}
+.rest-dots{display:flex;gap:5px;flex-wrap:wrap}
+.rest-dots i{width:12px;height:12px;border-radius:50%;background:var(--accent-2)}
+.rest-dots i.off{background:none;box-shadow:inset 0 0 0 1.5px var(--axis)}
+.rest-dots i.now{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-2)}
 footer.method{font-size:12px;color:var(--muted);line-height:1.6;max-width:80ch;padding-top:8px}
 footer.method p{margin:0 0 6px}
 footer.method b{color:var(--ink-2)}
@@ -355,6 +403,11 @@ footer.method b{color:var(--ink-2)}
   <section class="stats" id="stats" aria-label="Period totals"></section>
 
   <section class="board" id="board" aria-label="Cards">
+    <div class="card" id="k-rest" data-span="12">
+      <header><h2>Your time and rest</h2><span class="note">today and this week, whatever the period above</span></header>
+      <div class="rest" id="c-rest"></div>
+    </div>
+
     <div class="card" id="k-portrait" data-span="12">
       <header><h2>When the work happens</h2><span class="note" id="portrait-note"></span></header>
       <div class="chart portrait" id="c-portrait"></div>
@@ -430,6 +483,8 @@ const DATA = /*__DATA__*/null;
   const modelLabel = (m) => DATA.model_labels[m] || m.replace(/^claude-/, '');
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const parseAt = (s) => new Date(String(s).replace(' ', 'T'));
+  const fmtHM = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // ---------- periods ----------
   const periods = [{ id: '30d', label: '30 days', from: addDays(DATA.today, -29), to: DATA.today }];
@@ -739,6 +794,69 @@ const DATA = /*__DATA__*/null;
     if (bmOn) bindTip($('rail-month'), `<b>Paid month ${fmtSpan(bm)}</b><br>${ru(bm.budget_units, 0)} of ${ru(bm.budget, 0)} units - ${ru(bm.pct, 0)} %<br><span class="k">month gone by</span> ${ru(100 * bmDue, 0)} %<br><span class="k">left</span> ${dur(Math.max(0, bmEnd - now))} · up to ${ru(Math.max(0, bm.budget - bm.budget_units), 0)} units<br>The most the limit allows in the month: each week’s budget for its days in it, the days still ahead at this week’s budget.` +
       mWeeks.map((x) => `<br><span class="k">${fmtSpan(x.w)}</span> ${x.w.pct == null ? '—' : ru(x.w.pct, 0) + ' %'}${x.w.partial ? ' so far' : ''}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d in the month` : ''}`).join(''));
     if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
+  }
+
+  // ---------- your time and rest ----------
+  // DATA.presence[day]: you = time between your own messages, all sessions merged, waiting for Claude included,
+  // unless a break: over break_minutes of quiet after Claude's last move, or a gap over an hour; busy = any session
+  // running, parallel ones counted once; longest = your longest stretch without a break; night = you at 00-06
+  function rest() {
+    const day = (d) => (DATA.presence || {})[d] || { you: 0, busy: 0, longest: 0, night: 0 };
+    const fold = (from, to, k, f) => { let s = 0; for (let d = from; d <= to; d = addDays(d, 1)) s = f(s, day(d)[k]); return s; };
+    const sum = (from, to, k) => fold(from, to, k, (a, b) => a + b), most = (from, to, k) => fold(from, to, k, Math.max);
+    const today = DATA.today, mon = addDays(today, -((new Date(today + 'T00:00:00').getDay() + 6) % 7)), t = day(today);
+    const week = sum(mon, today, 'you'), long = most(mon, today, 'longest'), night = sum(mon, today, 'night');
+    const past = [1, 2, 3, 4].map((i) => sum(addDays(mon, -7 * i), addDays(mon, 6 - 7 * i), 'you')).filter((s) => s > 0);
+    const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : null;
+    let streak = 0;   // a day off is a day with under 30 min of you; a young today does not break the run
+    for (let d = t.you >= 1800 ? today : addDays(today, -1); day(d).you >= 1800; d = addDays(d, -1)) streak++;
+    const NORM = 8 * 3600;
+    // the verdict: the most pressing reason leads, the rest follow as one-liners
+    const why = [];
+    if (t.you > NORM) why.push(['bad', 'Time to stop for today', `${fmtH(t.you)} at Claude today, ${fmtH(t.you - NORM)} past an 8-hour day. What is left will keep until tomorrow, and tired prompts cost more rework than they save.`, `${fmtH(t.you)} today, past an 8-hour day`]);
+    if (long > 2 * 3600) why.push(['bad', 'Stand up for a while', `${fmtHM(long)} in one go without a break this week. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtHM(long)} in one go without a break`]);
+    if (week > 45 * 3600) why.push(['warn', 'Plan a lighter day', `${fmtH(week)} at Claude this week: heavier than a full working week. Leave tomorrow lighter, or take it without Claude.`, `${fmtH(week)} this week, over 45 h`]);
+    if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under 30 minutes at Claude.`, `${streak} days in a row without a day off`]);
+    if (night >= 1800) why.push(['warn', 'Move the work out of the night', `${fmtH(night)} at night this week. Night work shifts sleep, and the next day with it.`, `${fmtH(night)} at night this week`]);
+    const [state, verdict, reason] = why[0] || ['ok', 'Your pace is fine', 'No long days, no marathons without a break, no night work this week.'];
+    const box = $('c-rest');
+    box.dataset.st = state;
+    // today on a 12-hour scale (longer if the day ran past it), the 8-hour day marked
+    const scale = Math.max(12 * 3600, t.you, t.busy), at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
+    // the week on one scale with the same norm; night sits at the foot of each column
+    const days = [...Array(7)].map((_, i) => addDays(mon, i));
+    const top = Math.max(10 * 3600, ...days.map((d) => day(d).you)) * 1.08, y = (s) => `${(100 * s / top).toFixed(2)}%`;
+    const cols = days.map((d) => {
+      const v = day(d), n = Math.min(v.night, v.you), over = Math.max(0, v.you - NORM);
+      return `<div class="${d > today ? 'later' : ''}" tabindex="${d > today ? -1 : 0}">` +
+        `<i class="day" style="bottom:${y(n)};height:${y(v.you - n - over)}"></i>` +
+        (over ? `<i class="over" style="bottom:${y(v.you - over)};height:${y(over)}"></i>` : '') +
+        (n ? `<i class="night" style="bottom:0;height:${y(n)}"></i>` : '') + '</div>';
+    }).join('');
+    const span = 3 * 3600, mark = (s) => `${(100 * Math.min(s, span) / span).toFixed(2)}%`;
+    const dots = [...Array(14)].map((_, i) => addDays(today, i - 13))
+      .map((d) => `<i class="${day(d).you >= 1800 ? '' : 'off'}${d === today ? ' now' : ''}" title="${fmtDate(d)}: ${fmtH(day(d).you)}"></i>`).join('');
+    box.innerHTML =
+      `<div class="rest-say"><h3>${verdict}</h3><p>${reason}</p>` +
+      (why.length > 1 ? `<ul>${why.slice(1).map(([s, , , short]) => `<li data-st="${s}">${short}</li>`).join('')}</ul>` : '') +
+      `<div class="rest-today"><div class="rest-read"><span><b>${fmtH(t.you)}</b>you today</span><span>Claude busy ${fmtH(t.busy)}</span></div>` +
+      `<div class="rest-track"><i style="width:${at(Math.min(t.you, NORM))}"></i>` +
+      (t.you > NORM ? `<i class="over" style="left:${at(NORM)};width:calc(${at(t.you)} - ${at(NORM)})"></i>` : '') +
+      `<u style="left:${at(NORM)}"></u></div>` +
+      `<div class="rest-busy"><i style="width:${at(t.busy)}"></i></div>` +
+      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(NORM)}">8 h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div></div>` +
+      `<div class="rest-wk"><div class="rest-read"><span><b>${fmtH(week)}</b>you this week</span><span>${avg != null ? `${fmtH(avg)} a week on average before` : ''}</span></div>` +
+      `<div class="rest-cols">${cols}<span class="rest-norm" style="bottom:${y(NORM)}"><em>8 h</em></span></div>` +
+      `<div class="rest-days">${days.map((d, i) => d === today ? `<b>${DOW[i]}</b>` : `<span>${DOW[i]}</span>`).join('')}</div>` +
+      `<div class="rest-pair"><div><span>Longest stretch without a break: <b>${fmtHM(t.longest)}</b> today, <b>${fmtHM(long)}</b> this week</span>` +
+      `<div class="rest-stretch" style="--a:${mark(90 * 60)};--b:${mark(2 * 3600)}"><i class="wk" style="left:${mark(long)}"></i><i style="left:${mark(t.longest)}"></i></div>` +
+      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${mark(90 * 60)}">1:30</span><span style="left:${mark(2 * 3600)}">2:00</span><span style="left:100%;transform:translateX(-100%)">3:00</span></div></div>` +
+      `<div><span><b>${ru(streak)}</b> days in a row without a day off · <b>${fmtH(night)}</b> at night this week</span>` +
+      `<div class="rest-dots">${dots}</div><span class="muted">the last two weeks; a hollow dot is a day off (under 30 min)</span></div></div></div>`;
+    box.querySelectorAll('.rest-cols>div:not(.later)').forEach((c, i) => {
+      const v = day(days[i]);
+      bindTip(c, `<b>${DOW[i]} ${fmtDate(days[i])}</b><br>you ${fmtH(v.you)}${v.night ? ` · at night ${fmtH(v.night)}` : ''}<br>Claude busy ${fmtH(v.busy)}<br>longest stretch ${fmtHM(v.longest)}`);
+    });
   }
 
   // ---------- readout row ----------
@@ -1216,6 +1334,21 @@ const DATA = /*__DATA__*/null;
         `Cloud credit: $${ru(ccLeft, 0)} left${ccDays ? `, burns out in ${ccDays} d` : ''}`,
         `Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`]);
     }
+    // manual work: requests you keep typing (3+ times on 2+ days) and short nudges that walk Claude by the hand
+    const rep = {}; let mine = 0, nudges = 0;
+    for (const day of A.days) for (const [name, v] of Object.entries(day.p)) {
+      mine += v.mine || 0; nudges += v.nudges || 0;
+      for (const [k, n] of Object.entries(v.prompts || {})) {
+        const R = rep[k] || (rep[k] = { n: 0, days: new Set(), projects: new Set() });
+        R.n += n; R.days.add(day.d); R.projects.add(name);
+      }
+    }
+    const repeats = Object.entries(rep).filter(([, R]) => R.n >= 3 && R.days.size >= 2).sort((a, b) => b[1].n - a[1].n);
+    if (repeats.length) tips.push(['warn', `Requests you keep typing by hand: ${ru(repeats.length)}`,
+      repeats.slice(0, 5).map(([k, R]) => `<span class="mono">${/^#[0-9a-f]{8}$/.test(k) ? `${k} (text hidden in the published copy)` : esc(k)}</span> · ${ru(R.n)}× · days with it: ${R.days.size} · ${[...R.projects].map(esc).join(', ')}`).join('<br>') +
+      '<br>Turn a request you repeat into a skill or a slash command: one word instead of a paragraph, and the same result every time.']);
+    if (mine >= 20 && pct(nudges, mine) >= 10) tips.push(['warn', `${P(nudges, mine)} of your messages are short nudges (${ru(nudges)} / ${ru(mine)})`,
+      '“yes”, “go”, “continue”: Claude stops and waits for you. Hand it the whole task with a plan up front, switch on auto mode, allow the commands it keeps asking about (<b>/fewer-permission-prompts</b>), and use <b>/loop</b> for checks you repeat.']);
     const right = document.createElement('ol');
     right.innerHTML = tips.map(([kind, head, how]) => `<li><span class="tag ${kind}">${kind === 'warn' ? 'watch' : kind === 'ok' ? 'fine' : 'fact'}</span><div><b>${head}</b><br><span class="how">${how}</span></div></li>`).join('');
     if (effModels.length) c.insertAdjacentHTML('beforeend', '<section class="eff" id="eff"></section>');
@@ -1283,6 +1416,7 @@ const DATA = /*__DATA__*/null;
   }
   function method() {
     $('method').innerHTML = `<p><b>How this is counted.</b> The source is the Claude Code session logs (<span class="mono">~/.claude/projects/*/*.jsonl</span>); one API call = one <span class="mono">requestId</span>. Active time is the sum of gaps between adjacent records no longer than ${DATA.idle_minutes} min; idling with the window open does not count. Daily snapshots accumulate in <span class="mono">history.json</span>, so days Claude Code has already pruned stay with you.</p>
+<p><b>Your time.</b> Counted from your own messages across all sessions at once: the time between them, waiting for Claude included, unless it holds a break: more than ${DATA.break_minutes} min of quiet after Claude’s last move before your next message, or over an hour in all. Reading the last answer before a break is not counted, so the figure runs a little low. “Claude busy” is the time at least one session was running, parallel sessions counted once; the active time above sums sessions and runs higher. Subagents, <span class="mono">claude -p</span> runs and interruptions are not your messages.</p>
 <p><b>The limit.</b> Anthropic does not publish limits in tokens. A week's tokens are converted into load units (weight by model and token type = API prices); each plan's weekly budget is recovered from <span class="mono">/usage</span> readings taken on that plan, separately for “all models” and for Fable. The limit charges Fable more than its API price says, so the weight of a Fable unit is fitted to the readings as well and the week is counted with it; a week with a reading of its own follows its latest one. The 5-hour window is sized the same way and drawn as ticks on the week's bar. A plan with no reading of its own gets no percentage: scaling “Pro = Max ÷ 5” was tested and does not hold.</p>
 <p><b>Pace.</b> “Plan” is the share of the weekly limit that should be spent by this hour if you burn exactly 100 % by the reset. It follows your activity profile rather than the calendar, over the last ${PROFILE_DAYS} days (active seconds summed into each of the 168 hours of a week, with a flat blend of ${ru(PROFILE_FLAT * 100, 0)} %): nights and weekends weigh less than a working day. The gauge shows <span class="mono">k = actual ÷ plan</span>: 1.0 lands you on exactly 100 %, below that the limit goes unused, above it you run out before the reset. With fewer than ${PROFILE_MIN_DAYS} days of activity the plan is linear in time.</p>
 <p><b>Commits.</b> Local repos (${DATA.git.repos}), authors ${DATA.git.authors.map((x) => `<span class="mono">${x}</span>`).join(', ')} - the part that reaches GitHub after a push.</p>
@@ -1319,7 +1453,7 @@ const DATA = /*__DATA__*/null;
 
   function render() {
     const A = aggregate(current);
-    header(A); weekInstrument(); stats(A); portrait(A); daily(A); weekly(A); cumulative(A);
+    header(A); weekInstrument(); stats(A); rest(); portrait(A); daily(A); weekly(A); cumulative(A);
     gitDaily(A); months(); models(A); tokens(A); insights(A); projects(A); method();
   }
   initTheme();

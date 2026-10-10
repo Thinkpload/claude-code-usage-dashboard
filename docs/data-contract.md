@@ -2,7 +2,8 @@
 
 `~/.claude/usage-report/data.json` is rebuilt on every run, and the same object is injected into the
 template as `const DATA = …`. Times are local (`tz_offset_hours` from the settings), dates are
-`YYYY-MM-DD` strings, seconds and tokens are integers.
+`YYYY-MM-DD` strings, seconds and tokens are integers. `data.json` holds your raw prompt text (the
+`prompts` keys): before publishing a page built on it, hash or drop those keys, as `hide_prompts()` does for the artifact.
 
 ```jsonc
 {
@@ -33,6 +34,12 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
          "hours": [0, 0, …, 1800, …],    // the same seconds by hour of day, 0-23
          "msgs": 42,                     // user messages (tool results excluded)
          "sessions": ["b622af0b-…", …],  // ids of sessions alive that day
+         "mine": 30,                     // of msgs, the ones you typed (not subagent prompts, `claude -p` runs, interruptions or command tags)
+         "nudges": 6,                    // of those, short pokes: up to 15 characters, not a slash command ("continue", "ok")
+         "prompts": {"normalized start of a request": 4},   // requests of 20+ characters, not slash commands: lower-cased, spaces
+                                         // collapsed, cut at 80 characters -> how often it came up that day. In
+                                         // dashboard.artifact.html and dashboard.design.html the keys are "#" + 8 hex of the
+                                         // text's sha1 instead of the text: the counts travel, your words do not
          "ins": {                        // where the spend goes, in load units (tokens x weights)
            "units": 12.4, "ctx": {"lt50": 0.1, "50_100": 2.0, "100_150": 3.1, "gt150": 7.2},   // by the call's context size
            "effort": {"high": 200, "xhigh": 60},          // calls by effort level
@@ -62,6 +69,13 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
      "partial": true}                    // the window is still running
   ],
 
+  "presence": {                        // day -> your time at Claude, all projects and sessions together
+    "2026-09-20": {"you": 25200,         // seconds: time between your own messages, all sessions merged, waiting for Claude included, unless a break: over break_minutes of quiet after Claude's last move, or a gap over an hour
+                   "busy": 41000,        // seconds with any session running (gaps <= idle_minutes), parallel ones counted once
+                   "longest": 6300,      // your longest stretch without a break, on the day it started
+                   "night": 1800}        // of you, the seconds between 00:00 and 06:00
+  },
+
   "commits": {                         // day -> project -> [24] commits by hour (local git, authors from the settings)
     "2026-09-11": {"orbit-api": [0, 0, …, 3, …]}
   },
@@ -82,6 +96,7 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
                   "readings": 3}         // or null: no 5-hour reading on the current plan yet
   },
   "idle_minutes": 10,
+  "break_minutes": 15,                   // quiet after Claude's last move longer than this, before your next message, is a break (presence)
   "config_path": "~/.claude/usage-report/config.json",
   "refresh_url": "claude-usage://refresh"   // or null: not registered (--register-refresh), and always null in the artifact
 }
@@ -90,4 +105,5 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
 Deriving your own numbers from `days`: hours for a project or group over a period is the sum of
 `sec`; calls and tokens are the sum over `models`; sessions in a period is the union of `sessions`
 (one session can span several days); the weekday × hour heatmap is the sum of `hours` bucketed by
-the weekday of `d`. Note that `thinking` is already part of `output` — do not add them together.
+the weekday of `d`. For your own time at Claude use `presence[d].you`, not the sum of `sec`: parallel
+sessions overlap there. Note that `thinking` is already part of `output` — do not add them together.
