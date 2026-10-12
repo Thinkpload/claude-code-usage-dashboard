@@ -25,7 +25,9 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 
 HOME = os.path.expanduser("~")
@@ -129,6 +131,19 @@ def save_json(path, obj):
     with open(tmp, "w", encoding="utf8") as f:
         json.dump(obj, f, ensure_ascii=False, indent=1)
     os.replace(tmp, path)
+
+
+def progress(run, stage, pct):
+    """Where a build is, for the refresh button: progress.js beside the dashboard. A file:// page cannot fetch a
+    file, but it can load a script, so the page re-reads this one while it waits. run = the build's start, in ms."""
+    path = os.path.join(OUT_DIR, "progress.js")
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf8") as f:
+            f.write("window.PROGRESS=" + json.dumps({"run": run, "stage": stage, "pct": round(pct)}) + ";\n")
+        os.replace(tmp, path)
+    except OSError:     # the browser is reading it right now: the next step writes again
+        pass
 
 
 def load_config():
@@ -699,15 +714,20 @@ def git_commits(cfg, since, project_names):
     by_norm = {norm_name(n): n for n in project_names}
     out = defaultdict(lambda: defaultdict(lambda: [0] * 24))
     repos = find_repos(cfg)
-    for repo in repos:
-        name = by_norm.get(norm_name(os.path.basename(repo)), os.path.basename(repo))
+
+    def log(repo):
         args = ["git", "-C", repo, "log", "--all", "--format=%aI", f"--since={since}"] + [f"--author={a}" for a in authors]
         try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=60, encoding="utf8", errors="replace",
-                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))   # under pythonw (the refresh button) each git would open a console window
+            return subprocess.run(args, capture_output=True, text=True, timeout=60, encoding="utf8", errors="replace",
+                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout   # under pythonw (the refresh button) each git would open a console window
         except (OSError, subprocess.SubprocessError):
-            continue
-        for line in res.stdout.splitlines():
+            return ""
+
+    with ThreadPoolExecutor(8) as ex:      # one git at a time took seconds over a few dozen repos
+        logs = list(ex.map(log, repos))
+    for repo, stdout in zip(repos, logs):
+        name = by_norm.get(norm_name(os.path.basename(repo)), os.path.basename(repo))
+        for line in stdout.splitlines():
             try:
                 dt = datetime.fromisoformat(line.strip()).astimezone(tz(cfg))
             except ValueError:
@@ -752,11 +772,11 @@ def build_data(history, cfg, now):
 
 
 def refresh_command():
-    """What the claude-usage:// link runs: this script, windowless (pythonw), on the same data folder."""
+    """What the claude-usage:// link runs: this script, windowless (pythonw), on the same data folder, quick."""
     exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     if not os.path.exists(exe):
         exe = sys.executable
-    return f'"{exe}" "{os.path.abspath(__file__)}" --out-dir "{OUT_DIR}"'
+    return f'"{exe}" "{os.path.abspath(__file__)}" --out-dir "{OUT_DIR}" --quick'
 
 
 def register_refresh():
@@ -1012,6 +1032,7 @@ def main(argv=None):
     ap.add_argument("--adopt", metavar="FILE.html", help="adopt a look: HTML from Claude Design -> template.html, then rebuild")
     ap.add_argument("--out-dir", metavar="DIR", help=f"data directory: config, history, rendered pages (default: {OUT_DIR})")
     ap.add_argument("--register-refresh", action="store_true", help="Windows: register claude-usage:// so the refresh button on the dashboard rebuilds it")
+    ap.add_argument("--quick", action="store_true", help="read only the logs touched since the day before the last build; older days come from history.json (the refresh button; a run without it rereads everything)")
     ap.add_argument("--lang", help="dashboard language; needs i18n/<lang>.json (default: config 'lang', else en)")
     ap.add_argument("--break-check", action="store_true", help="UserPromptSubmit hook: remind to take a break after remind_after_minutes without one; nothing else runs")
     args = ap.parse_args(argv)
@@ -1037,44 +1058,62 @@ def main(argv=None):
         print(f"Refresh button registered: claude-usage:// runs {register_refresh()}")
     if args.adopt:
         print(f"Template updated: {adopt(args.adopt)} (the old one is beside it as template.bak.html)")
-    changed = False
-    if args.reset:
-        cfg["week_reset"] = args.reset
-        changed = True
-    if args.observe is not None:
-        obs = {"at": args.at or now.strftime("%Y-%m-%d %H:%M"), "pct": args.observe, "budget_factor": args.factor}
-        if args.fable is not None:
-            obs["fable_pct"] = args.fable
-        record_observation(cfg, obs, now)
-        changed = True
-    elif not args.no_fetch:
-        try:
-            obs, reset, credit = fetch_usage(cfg)
-            obs["at"] = now.strftime("%Y-%m-%d %H:%M")        # no budget_factor: a promo comes from config "boosts"
-            record_observation(cfg, obs, now)
-            cfg["week_reset"] = reset
-            if credit:
-                cfg["cloud_credit"] = dict(credit, at=obs["at"])
-            changed = True
-            fable = f"{obs['fable_pct']:.0f} %" if "fable_pct" in obs else "-"
-            print(f"/usage reading fetched: week {obs['pct']:.0f} %, Fable {fable}, resets {reset}")
-        except RuntimeError as e:
-            print(f"/usage reading not fetched ({e}) - calibrating from earlier readings")
-    if changed:
-        save_json(CONFIG_PATH, cfg)
+    run, last = int(time.time() * 1000), []
 
-    pres = {}
-    history = merge(load_json(HISTORY_PATH, {"days": {}}), scan(cfg, presence=pres), pres)
-    history["updated"] = now.isoformat()
-    save_json(HISTORY_PATH, history)
-    data = build_data(history, cfg, now)
-    paths, missing = render(data, args.lang or cfg.get("lang", "en"))
-    print(summary(data))
-    if missing:
-        print(f"Untranslated: {len(missing)} entries in the table no longer match the template, e.g. {missing[0][:60]!r}")
-    print(f"Dashboard: {paths[0]}")
-    if args.open and hasattr(os, "startfile"):
-        os.startfile(paths[0])
+    def step(stage, pct):  # a write per percent, not per file
+        if last[-1:] != [(stage, round(pct))]:
+            last[:] = [(stage, round(pct))]
+            progress(run, stage, pct)
+
+    try:
+        step("usage", 1)
+        changed = False
+        if args.reset:
+            cfg["week_reset"] = args.reset
+            changed = True
+        if args.observe is not None:
+            obs = {"at": args.at or now.strftime("%Y-%m-%d %H:%M"), "pct": args.observe, "budget_factor": args.factor}
+            if args.fable is not None:
+                obs["fable_pct"] = args.fable
+            record_observation(cfg, obs, now)
+            changed = True
+        elif not args.no_fetch:
+            try:
+                obs, reset, credit = fetch_usage(cfg)
+                obs["at"] = now.strftime("%Y-%m-%d %H:%M")        # no budget_factor: a promo comes from config "boosts"
+                record_observation(cfg, obs, now)
+                cfg["week_reset"] = reset
+                if credit:
+                    cfg["cloud_credit"] = dict(credit, at=obs["at"])
+                changed = True
+                fable = f"{obs['fable_pct']:.0f} %" if "fable_pct" in obs else "-"
+                print(f"/usage reading fetched: week {obs['pct']:.0f} %, Fable {fable}, resets {reset}")
+            except RuntimeError as e:
+                print(f"/usage reading not fetched ({e}) - calibrating from earlier readings")
+        if changed:
+            save_json(CONFIG_PATH, cfg)
+
+        step("scan", 5)
+        history = load_json(HISTORY_PATH, {"days": {}})
+        since = datetime.fromisoformat(history["updated"]).date() if args.quick and history.get("updated") else None
+        pres = {}
+        history = merge(history, scan(cfg, presence=pres, since=since, report=lambda x: step("scan", 5 + 80 * x)), pres)
+        history["updated"] = now.isoformat()
+        save_json(HISTORY_PATH, history)
+        step("build", 85)
+        data = build_data(history, cfg, now)
+        step("render", 95)
+        paths, missing = render(data, args.lang or cfg.get("lang", "en"))
+        print(summary(data))
+        if missing:
+            print(f"Untranslated: {len(missing)} entries in the table no longer match the template, e.g. {missing[0][:60]!r}")
+        step("done", 100)
+        print(f"Dashboard: {paths[0]}")
+        if args.open and hasattr(os, "startfile"):
+            os.startfile(paths[0])
+    except BaseException:
+        progress(run, "failed", 0)
+        raise
 
 
 if __name__ == "__main__":

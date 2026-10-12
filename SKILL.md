@@ -89,7 +89,10 @@ and the local dashboard stay fresh and the weekly gauge gets two `/usage` readin
 In between, the dashboard's **refresh** button rebuilds it on demand. It needs a one-time
 `claude-usage-dashboard --register-refresh` (Windows, current user, no admin): that registers the
 `claude-usage://` scheme to run this script windowless on the same data folder. Rerun it after moving
-the checkout or Python. The button is only on the local `dashboard.html`, never in the artifact. The scheduler does
+the checkout or Python. The button runs a quick build (`--quick`: only the logs touched since the day before the
+last build, a few seconds; older days come from `history.json`) and shows its stage and percent under the button,
+read from `progress.js` in the data folder. Config changes reach older days on the next full run, so keep the
+scheduler on full builds. The button is only on the local `dashboard.html`, never in the artifact. The scheduler does
 not publish the artifact; that is step 3, from a session.
 
 ## Break reminder (hook)

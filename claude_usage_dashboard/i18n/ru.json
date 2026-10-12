@@ -326,12 +326,9 @@
  "`Cloud credit: $${ru(ccLeft, 0)} left${ccDays ? `, burns out in ${ccDays} d` : ''}`": "`Облачный кредит: осталось $${ru(ccLeft, 0)}${ccDays ? `, сгорит через ${ccDays} дн` : ''}`",
  "`Cloud sessions spend it before the plan limit: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines. Hand long self-driving tasks to the cloud while the credit lasts${ccDays ? ` - using it up takes about $${ru(ccLeft / ccDays, 0)} a day` : ''}.`": "`Облачные сессии тратят его раньше лимита тарифа: Claude Code в вебе и в мобильном приложении, облачные сессии из терминала, рутины. Длинные самостоятельные задачи выгодно отдавать в облако, пока кредит жив${ccDays ? ` — чтобы выбрать его весь, нужно около $${ru(ccLeft / ccDays, 0)} в день` : ''}.`",
  "   // rows that round to 0 % are noise": "   // строки, которые округляются до 0 %, — шум",
- "\n  // Refresh: claude-usage://refresh (registered by --register-refresh) rebuilds this file; the page reloads until the build time changes\n": "\n  // Обновление: claude-usage://refresh (регистрирует --register-refresh) пересобирает этот файл; страница перезагружается, пока не сменится время сборки\n",
  "Rebuild the dashboard now from the latest logs": "Пересобрать дашборд сейчас по свежим журналам",
  "'refreshing…'": "'обновляю…'",
- "'No new build within 3 minutes: is claude-usage:// registered (--register-refresh)?'": "'За 3 минуты новой сборки нет: зарегистрирован ли claude-usage:// (--register-refresh)?'",
  "aria-label=\"refresh\"": "aria-label=\"обновить\"",
- "   // the spin keeps its phase across reloads instead of jumping back to the start": "   // вращение продолжается с той же фазы после перезагрузки, а не прыгает в начало",
  "    // 5-hour windows on the week's scale: where the rest of the open window takes you, then each full window after it,\n    // as many as still open before the reset": "    // 5-часовые окна на шкале недели: куда доведёт остаток открытого окна, дальше — каждое следующее полное окно,\n    // сколько их ещё откроется до сброса",
  "// the limit weeks of the month: notches where one ends and the next begins, each one's share of its own limit in the tip": "// лимитные недели месяца: насечки там, где одна кончается и начинается следующая; доля каждой от её лимита — в подсказке",
  "'<span><i class=\"k-h5\"></i>one more 5-hour window</span>'": "'<span><i class=\"k-h5\"></i>ещё одно 5-часовое окно</span>'",
@@ -461,5 +458,13 @@
  "// only a step between weeks animates, not the first draw": "// анимируется только шаг между неделями, не первая отрисовка",
  "/* the norm steps down at the weekend: 7 columns and 6 gaps of 8px, the line runs 4px past its outer columns */": "/* в выходные норма ступенькой ниже: 7 столбцов и 6 зазоров по 8px, линия выходит на 4px за крайние столбцы */",
  "/* the week switch sits in the card's header: the dates, then both arrows side by side as one control */": "/* переключатель недель стоит в заголовке карточки: даты, за ними обе стрелки рядом, одним элементом */",
- "// refilled on every draw, so the arrows never collect a second listener": "// перезаполняется при каждой отрисовке, чтобы на стрелках не копились обработчики"
+ "// refilled on every draw, so the arrows never collect a second listener": "// перезаполняется при каждой отрисовке, чтобы на стрелках не копились обработчики",
+ "  // Refresh: claude-usage://refresh (registered by --register-refresh) rebuilds this file and writes where it is to\n  // progress.js beside it; the page re-reads that script every second, shows the stage and reloads once it is done\n": "  // Обновление: claude-usage://refresh (регистрирует --register-refresh) пересобирает этот файл и пишет, где он сейчас,\n  // в progress.js рядом; страница перечитывает этот скрипт каждую секунду, показывает этап и перезагружается, когда готово\n",
+ "{ usage: 'fetching /usage', scan: 'reading the logs', build: 'counting', render: 'drawing the page', done: 'reloading' }": "{ usage: 'запрашиваю /usage', scan: 'читаю логи', build: 'считаю', render: 'рисую страницу', done: 'перезагружаю' }",
+ "   // the build's last stage and percent, and when it got there": "   // последние этап и процент сборки и когда она до них дошла",
+ "'build failed', 'The build failed: run usage_report.py by hand to see the error'": "'сборка упала', 'Сборка упала: запусти usage_report.py руками, чтобы увидеть ошибку'",
+ "'no build', 'No build started within 30 seconds: is claude-usage:// registered (--register-refresh)?'": "'сборка не началась', 'За 30 секунд сборка не началась: зарегистрирован ли claude-usage:// (--register-refresh)?'",
+ "'stalled', 'The build has not moved for 2 minutes'": "'сборка встала', 'Сборка не двигается уже 2 минуты'",
+ "   // a file:// page cannot fetch a file, but it can load a script": "   // страница с file:// не может запросить файл, но может загрузить скрипт",
+ "show('starting', 0)": "show('запускаю', 0)"
 }
