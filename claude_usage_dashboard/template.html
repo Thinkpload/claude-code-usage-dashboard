@@ -354,12 +354,15 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-track u{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
 .rest-busy{position:relative;height:3px;border-radius:2px;background:var(--surface-2)}
 .rest-busy i{position:absolute;inset:0 auto 0 0;border-radius:2px;background:color-mix(in srgb,var(--accent-2) 50%,var(--surface-2))}
+/* the busy figure carries a dash of the thin bar it reads */
+.rest-bk{display:inline-flex;align-items:center;gap:7px}
+.rest-bk i{width:16px;height:3px;border-radius:2px;background:color-mix(in srgb,var(--accent-2) 50%,var(--surface-2))}
 .rest-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);position:relative;height:14px}
 .rest-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .rest-scale span:first-child{transform:none}
 .rest-wk{display:flex;flex-direction:column;gap:10px}
 .rest-wk .rest-read b{font-size:20px}
-.rest-cols{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;height:132px}
+.rest-cols{position:relative;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;height:150px}
 .rest-cols>div{position:relative;border-radius:7px;background:var(--surface-2);overflow:hidden}
 .rest-cols>div.later{opacity:.45}
 .rest-cols>div i{position:absolute;left:0;right:0}
@@ -367,7 +370,9 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-cols i.night{bottom:0;background:var(--r1)}
 .rest-cols i.over{background:var(--bad)}
 .rest-norm{position:absolute;left:-4px;right:-4px;border-top:1.5px dashed var(--ink-2);pointer-events:none}
-.rest-norm em{position:absolute;right:0;top:-18px;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface);padding:0 4px}
+.rest-norm em{position:absolute;top:0;transform:translateY(-50%);font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);white-space:nowrap}
+.rest-norm.wd em{right:calc(100% + 6px)}
+.rest-norm.we em{left:calc(100% + 6px)}
 /* the norm steps down at the weekend: 7 columns and 6 gaps of 8px, the line runs 4px past its outer columns */
 .rest-norm.wd{right:calc((100% - 48px) * 2 / 7 + 12px)}
 .rest-norm.we{left:calc((100% - 48px) * 5 / 7 + 36px)}
@@ -380,11 +385,27 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-nav button:disabled{color:var(--muted);opacity:.45;cursor:default}
 .rest-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 @media (prefers-reduced-motion:no-preference){
-  .rest.moving .rest-cols i,.rest.moving .rest-norm{transition:bottom .45s ease,height .45s ease}
-  .rest.moving .rest-cols>div{transition:opacity .45s}
-  .rest.moving .rest-stretch i{transition:left .45s ease}}
+  .rest.moving .rest-cols i,.rest.moving .rest-norm{transition:bottom 1.8s ease-in-out,height 1.8s ease-in-out}
+  .rest.moving .rest-cols>div{transition:opacity 1.8s ease-in-out}
+  .rest.moving .rest-stretch i{transition:left 1.8s ease-in-out}}
 .rest-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center}
 .rest-days b{color:var(--ink);font-weight:600}
+/* the day's hours at the head of its column, sized to the column; red once the day is past its norm */
+.rest-cols>div{container-type:inline-size}
+.rest-cols>div b{position:absolute;top:8px;left:0;right:0;text-align:center;font-family:var(--mono);font-size:clamp(10px,24cqi,17px);font-weight:600;letter-spacing:-.03em;color:var(--ink);pointer-events:none}
+.rest-cols>div b small{font-size:.68em;font-weight:500;color:var(--muted);letter-spacing:0}
+.rest-cols>div b.over{color:var(--bad)}
+.rest-cols>div b{white-space:nowrap}
+@container (max-width:48px){.rest-cols>div b small{display:none}}
+/* side margins hold the norm labels: 8 h left of the weekday line, 3 h right of the weekend one */
+.rest-wk>.rest-read,.rest-cols,.rest-days,.rest-key{margin:0 32px}
+/* the key: swatches shaped like the columns, the norm as a dash of its own line */
+.rest-key{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:11.5px;color:var(--muted)}
+.rest-key span{display:inline-flex;align-items:center;gap:6px}
+.rest-key i{width:7px;height:12px;border-radius:2px;background:var(--accent-2)}
+.rest-key i.n{background:var(--r1)}
+.rest-key i.o{background:var(--bad)}
+.rest-key i.d{width:14px;height:0;border-radius:0;background:none;border-top:1.5px dashed var(--ink-2)}
 .rest-pair{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;padding-top:14px;border-top:1px solid var(--hair)}
 @media (max-width:520px){.rest-pair{grid-template-columns:1fr}}
 .rest-pair>div{display:grid;gap:9px;align-content:start;font-size:12px;color:var(--ink-2)}
@@ -847,25 +868,24 @@ const DATA = /*__DATA__*/null;
     box.classList.remove('moving');   // only a step between weeks animates, not the first draw
     // today on a 12-hour scale (longer if the day ran past it), today's norm marked
     const scale = Math.max(12 * 3600, t.you, t.busy), at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
-    const span = 3 * 3600, mark = (s) => `${(100 * Math.min(s, span) / span).toFixed(2)}%`;
     const dots = [...Array(14)].map((_, i) => addDays(today, i - 13))
       .map((d) => `<i class="${day(d).you >= 1800 ? '' : 'off'}${d === today ? ' now' : ''}" title="${fmtDate(d)}: ${fmtH(day(d).you)}"></i>`).join('');
     box.innerHTML =
       `<div class="rest-say"><h3>${verdict}</h3><p>${reason}</p>` +
       (why.length > 1 ? `<ul>${why.slice(1).map(([s, , , short]) => `<li data-st="${s}">${short}</li>`).join('')}</ul>` : '') +
-      `<div class="rest-today"><div class="rest-read"><span><b>${fmtH(t.you)}</b>you today</span><span>Claude busy ${fmtH(t.busy)}</span></div>` +
+      `<div class="rest-today"><div class="rest-read"><span><b>${fmtH(t.you)}</b>you today</span><span class="rest-bk"><i></i>Claude busy ${fmtH(t.busy)}</span></div>` +
       `<div class="rest-track"><i style="width:${at(Math.min(t.you, N))}"></i>` +
       (t.you > N ? `<i class="over" style="left:${at(N)};width:calc(${at(t.you)} - ${at(N)})"></i>` : '') +
       `<u style="left:${at(N)}"></u></div>` +
       `<div class="rest-busy"><i style="width:${at(t.busy)}"></i></div>` +
       `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(N)}">${N / 3600} h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div></div>` +
       `<div class="rest-wk"><div class="rest-read"></div>` +
-      `<div class="rest-cols">${'<div><i class="day"></i><i class="over"></i><i class="night"></i></div>'.repeat(7)}` +
+      `<div class="rest-key"><span><i></i>day</span><span><i class="n"></i>night</span><span><i class="o"></i>over the norm</span><span><i class="d"></i>norm</span></div>` +
+      `<div class="rest-cols">${'<div><i class="day"></i><i class="over"></i><i class="night"></i><b></b></div>'.repeat(7)}` +
       `<span class="rest-norm wd"><em>8 h</em></span><span class="rest-norm we"><em>3 h</em></span></div>` +
       `<div class="rest-days"></div>` +
       `<div class="rest-pair"><div><span class="rest-long"></span>` +
-      `<div class="rest-stretch" style="--a:${mark(90 * 60)};--b:${mark(2 * 3600)}"><i class="wk"></i><i></i></div>` +
-      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${mark(90 * 60)}">1:30</span><span style="left:${mark(2 * 3600)}">2:00</span><span style="left:100%;transform:translateX(-100%)">3:00</span></div></div>` +
+      `<div class="rest-stretch"><i class="wk"></i><i></i></div><div class="rest-scale"></div></div>` +
       `<div><span><b>${ru(streak)}</b> days in a row without a day off · <span class="rest-night"></span></span>` +
       `<div class="rest-dots">${dots}</div><span class="muted">the last two weeks; a hollow dot is a day off (under 30 min)</span></div></div></div>`;
     const nav = $('rest-nav');   // refilled on every draw, so the arrows never collect a second listener
@@ -873,7 +893,7 @@ const DATA = /*__DATA__*/null;
     // the week on the right: the columns are drawn once and a step only moves their heights, so the old week visibly
     // turns into the new one; night sits at the foot of each column, red is past the day's norm
     const cols = [...box.querySelectorAll('.rest-cols>div')], [prev, next] = nav.querySelectorAll('button');
-    const [wkMark, nowMark] = box.querySelectorAll('.rest-stretch i');
+    const stretch = box.querySelector('.rest-stretch'), [wkMark, nowMark] = stretch.children;
     const first = Object.keys(DATA.presence || {}).sort()[0] || today;
     let days;
     const show = () => {
@@ -882,14 +902,16 @@ const DATA = /*__DATA__*/null;
       const wk = sum(mon, end, 'you'), wkLong = most(mon, end, 'longest'), wkNight = sum(mon, end, 'night');
       const past = [1, 2, 3, 4].map((i) => sum(addDays(mon, -7 * i), addDays(mon, 6 - 7 * i), 'you')).filter((s) => s > 0);
       const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : null;
-      const top = Math.max(10 * 3600, ...days.map((d) => day(d).you)) * 1.08, y = (s) => `${(100 * s / top).toFixed(2)}%`;
+      const top = Math.max(10 * 3600, ...days.map((d) => day(d).you)) * 1.25, y = (s) => `${(100 * s / top).toFixed(2)}%`;
       days.forEach((d, i) => {
-        const v = day(d), n = Math.min(v.night, v.you), over = Math.max(0, v.you - norm(d)), [di, oi, ni] = cols[i].children;
+        const v = day(d), n = Math.min(v.night, v.you), over = Math.max(0, v.you - norm(d)), [di, oi, ni, hi] = cols[i].children;
         cols[i].className = d > today ? 'later' : '';
         cols[i].tabIndex = d > today ? -1 : 0;
         Object.assign(di.style, { bottom: y(n), height: y(v.you - n - over) });
         Object.assign(oi.style, { bottom: y(v.you - over), height: y(over) });
         ni.style.height = y(n);
+        hi.className = over ? 'over' : '';
+        hi.innerHTML = d > today ? '' : `${ru(v.you / 3600, 1)}<small> h</small>`;
       });
       box.querySelector('.rest-norm.wd').style.bottom = y(NORM);
       box.querySelector('.rest-norm.we').style.bottom = y(NORM_OFF);
@@ -899,6 +921,13 @@ const DATA = /*__DATA__*/null;
       box.querySelector('.rest-wk>.rest-read').innerHTML = `<span><b>${fmtH(wk)}</b>${now ? 'you this week' : 'you that week'}</span><span>${avg != null ? `${fmtH(avg)} a week on average before` : ''}</span>`;
       box.querySelector('.rest-days').innerHTML = days.map((d, i) => d === today ? `<b>${DOW[i]}</b>` : `<span>${DOW[i]}</span>`).join('');
       box.querySelector('.rest-long').innerHTML = `Longest stretch without a break: <b>${fmtHM(now ? t.longest : wkLong)}</b>${now ? ` today, <b>${fmtHM(wkLong)}</b> this week` : ' that week'}`;
+      // the stretch scale runs to 3:00, or to the week's longest stretch rounded up to the hour; 1:30 drops out once
+      // the scale is long enough to crowd it against 2:00
+      const span = Math.max(3 * 3600, Math.ceil(wkLong / 3600) * 3600), mark = (s) => `${(100 * Math.min(s, span) / span).toFixed(2)}%`;
+      stretch.style.setProperty('--a', mark(90 * 60));
+      stretch.style.setProperty('--b', mark(2 * 3600));
+      stretch.nextElementSibling.innerHTML = `<span style="left:0">0</span>${span <= 4 * 3600 ? `<span style="left:${mark(90 * 60)}">1:30</span>` : ''}` +
+        `<span style="left:${mark(2 * 3600)}">2:00</span><span style="left:100%;transform:translateX(-100%)">${fmtHM(span)}</span>`;
       wkMark.style.left = mark(wkLong);
       nowMark.style.left = mark(t.longest);
       nowMark.hidden = !now;

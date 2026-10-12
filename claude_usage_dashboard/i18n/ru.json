@@ -430,7 +430,7 @@
  "Move the work out of the night": "Уведи работу из ночи",
  " at night this week. Night work shifts sleep, and the next day with it.": " ночью на этой неделе. Ночная работа сдвигает сон, а с ним и следующий день.",
  "</b>you today</span>": "</b>ты сегодня</span>",
- "<span>Claude busy ": "<span>Claude в работе ",
+ "<i></i>Claude busy ": "<i></i>Claude в работе ",
  "<br>Claude busy ": "<br>Claude в работе ",
  ">${N / 3600} h day<": ">день ${N / 3600} ч<",
  "${ru(scale / 3600)} h</span>": "${ru(scale / 3600)} ч</span>",
@@ -459,6 +459,7 @@
  "/* the norm steps down at the weekend: 7 columns and 6 gaps of 8px, the line runs 4px past its outer columns */": "/* в выходные норма ступенькой ниже: 7 столбцов и 6 зазоров по 8px, линия выходит на 4px за крайние столбцы */",
  "/* the week switch sits in the card's header: the dates, then both arrows side by side as one control */": "/* переключатель недель стоит в заголовке карточки: даты, за ними обе стрелки рядом, одним элементом */",
  "// refilled on every draw, so the arrows never collect a second listener": "// перезаполняется при каждой отрисовке, чтобы на стрелках не копились обработчики",
+ "/* side margins hold the norm labels: 8 h left of the weekday line, 3 h right of the weekend one */": "/* боковые поля держат подписи нормы: 8 ч слева от линии будней, 3 ч справа от линии выходных */",
  "  // Refresh: claude-usage://refresh (registered by --register-refresh) rebuilds this file and writes where it is to\n  // progress.js beside it; the page re-reads that script every second, shows the stage and reloads once it is done\n": "  // Обновление: claude-usage://refresh (регистрирует --register-refresh) пересобирает этот файл и пишет, где он сейчас,\n  // в progress.js рядом; страница перечитывает этот скрипт каждую секунду, показывает этап и перезагружается, когда готово\n",
  "{ usage: 'fetching /usage', scan: 'reading the logs', build: 'counting', render: 'drawing the page', done: 'reloading' }": "{ usage: 'запрашиваю /usage', scan: 'читаю логи', build: 'считаю', render: 'рисую страницу', done: 'перезагружаю' }",
  "   // the build's last stage and percent, and when it got there": "   // последние этап и процент сборки и когда она до них дошла",
@@ -466,5 +467,14 @@
  "'no build', 'No build started within 30 seconds: is claude-usage:// registered (--register-refresh)?'": "'сборка не началась', 'За 30 секунд сборка не началась: зарегистрирован ли claude-usage:// (--register-refresh)?'",
  "'stalled', 'The build has not moved for 2 minutes'": "'сборка встала', 'Сборка не двигается уже 2 минуты'",
  "   // a file:// page cannot fetch a file, but it can load a script": "   // страница с file:// не может запросить файл, но может загрузить скрипт",
- "show('starting', 0)": "show('запускаю', 0)"
+ "show('starting', 0)": "show('запускаю', 0)",
+ "<span><i></i>day</span>": "<span><i></i>день</span>",
+ "<i class=\"n\"></i>night</span>": "<i class=\"n\"></i>ночь</span>",
+ "<i class=\"o\"></i>over the norm</span>": "<i class=\"o\"></i>сверх нормы</span>",
+ "<i class=\"d\"></i>norm</span>": "<i class=\"d\"></i>норма</span>",
+ "<small> h</small>": "<small> ч</small>",
+ "/* the day's hours at the head of its column, sized to the column; red once the day is past its norm */": "/* часы дня в голове его столбца, по размеру столбца; красные, когда день вышел за норму */",
+ "/* the key: swatches shaped like the columns, the norm as a dash of its own line */": "/* легенда: образцы в форме столбцов, норма — чёрточкой её же линии */",
+ "/* the busy figure carries a dash of the thin bar it reads */": "/* у цифры занятости — чёрточка той тонкой полосы, к которой она относится */",
+ "      // the stretch scale runs to 3:00, or to the week's longest stretch rounded up to the hour; 1:30 drops out once\n      // the scale is long enough to crowd it against 2:00": "      // шкала отрезка идёт до 3:00 или до самого долгого отрезка недели, округлённого вверх до часа; 1:30 пропадает,\n      // когда шкала так длинна, что подпись слиплась бы с 2:00"
 }
