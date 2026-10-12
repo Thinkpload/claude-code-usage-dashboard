@@ -1,6 +1,6 @@
 <title>Claude Code usage</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%230f1518'/%3E%3Cg fill='none' stroke-width='9'%3E%3Cpath d='M12.08 47.50A23 23 0 0 1 20.50 16.08' stroke='%237fbbd4'/%3E%3Cpath d='M20.50 16.08A23 23 0 0 1 43.50 16.08' stroke='%23e0a64a'/%3E%3Cpath d='M43.50 16.08A23 23 0 0 1 51.92 47.50' stroke='%23ec7157'/%3E%3C/g%3E%3Cpath d='M30.96 40.89L35.64 18.88' stroke='%23e8edee' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='36' r='4.25' fill='%23e8edee'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Barlow+Semi+Condensed:wght@400;500;600&family=Orbitron:wght@600;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
    LOOK TOKENS - the one place where colours and fonts live.
@@ -22,6 +22,7 @@
   --cold:#5f8697;                                    /* underburn: gone cold, paid-for capacity left standing */
   --font:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --digit:"Orbitron","JetBrains Mono",monospace;                      /* readout digits: you against Claude */
   --shadow:0 12px 30px rgba(0,0,0,.24);
   --radius:14px; --radius-sm:10px; --gap:16px;
 }
@@ -345,6 +346,25 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-say li{display:flex;gap:9px;align-items:baseline}
 .rest-say li::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--warn);transform:translateY(-1px)}
 .rest-say li[data-st="bad"]::before{background:var(--bad)}
+/* how much Claude works per hour of you: the verdict large in its state's colour, the figure under it, then a panel
+   of moves, each a short tag and a few words; tags drawn from your own logs are tinted */
+.rest-lever{display:grid;gap:8px;padding-top:18px;border-top:1px solid var(--hair);--lv:var(--ink)}
+.rest-lever[data-st="warn"]{--lv:var(--warn)}
+.rest-lever[data-st="ok"]{--lv:var(--accent-2)}
+.rest-lever h4{margin:0;font-size:clamp(20px,2.1vw,25px);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:var(--lv);text-wrap:balance}
+/* you against Claude as a fraction in readout digits: you in ice like your bar, Claude in brass like its bar */
+.rest-ratio{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 14px;font-size:12px;color:var(--muted)}
+.rest-ratio b{font-family:var(--digit);font-size:26px;font-weight:700;letter-spacing:.01em;margin-right:10px;font-variant-numeric:tabular-nums}
+.rest-ratio s{text-decoration:none;font-weight:400;color:var(--muted);margin:0 .2em}
+.rest-ratio u{text-decoration:none;font-family:var(--digit);font-size:13px;font-weight:600}
+.rest-ratio .me{font-style:normal;color:var(--accent-2)}
+.rest-ratio .cl{font-style:normal;color:var(--accent)}
+.rest-todo{margin-top:6px;display:grid;gap:10px;padding:12px 14px 14px;border-radius:10px;background:var(--surface-2);border-left:3px solid color-mix(in srgb,var(--lv) 75%,var(--surface-2))}
+.rest-todo>span{font-size:12px;font-weight:600;color:var(--ink-2)}
+.rest-todo dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px 12px;align-items:baseline}
+.rest-todo dt{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink);background:var(--surface);padding:3px 9px;border-radius:999px;white-space:nowrap;justify-self:start}
+.rest-todo dt.me{color:var(--warn)}
+.rest-todo dd{margin:0;font-size:13px;line-height:1.4;color:var(--ink-2)}
 .rest-today{padding-top:14px;display:grid;gap:8px}
 .rest-read{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 12px;font-size:12px;color:var(--muted)}
 .rest-read b{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.03em;color:var(--ink);margin-right:8px}
@@ -353,10 +373,10 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-track i.over{border-radius:0 999px 999px 0;background:repeating-linear-gradient(-45deg,var(--bad) 0 5px,color-mix(in srgb,var(--bad) 45%,var(--surface-2)) 5px 9px)}
 .rest-track u{position:absolute;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--ink);border-radius:1px}
 .rest-busy{position:relative;height:3px;border-radius:2px;background:var(--surface-2)}
-.rest-busy i{position:absolute;inset:0 auto 0 0;border-radius:2px;background:color-mix(in srgb,var(--accent-2) 50%,var(--surface-2))}
+.rest-busy i{position:absolute;inset:0 auto 0 0;border-radius:2px;background:var(--accent)}
 /* the busy figure carries a dash of the thin bar it reads */
 .rest-bk{display:inline-flex;align-items:center;gap:7px}
-.rest-bk i{width:16px;height:3px;border-radius:2px;background:color-mix(in srgb,var(--accent-2) 50%,var(--surface-2))}
+.rest-bk i{width:16px;height:3px;border-radius:2px;background:var(--accent)}
 .rest-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted);position:relative;height:14px}
 .rest-scale span{position:absolute;transform:translateX(-50%);white-space:nowrap}
 .rest-scale span:first-child{transform:none}
@@ -863,6 +883,31 @@ const DATA = /*__DATA__*/null;
     if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under 30 minutes at Claude.`, `${streak} days in a row without a day off`]);
     if (night >= 1800) why.push(['warn', 'Move the work out of the night', `${fmtH(night)} at night this week. Night work shifts sleep, and the next day with it.`, `${fmtH(night)} at night this week`]);
     const [state, verdict, reason] = why[0] || ['ok', 'Your pace is fine', 'No long days, no marathons without a break, no night work this week.'];
+    // Claude per hour of you: today once there is half an hour of you, else the week; moves drawn from your own logs
+    // this week lead, then the general ones for the state, three at most
+    const wkBusy = sum(mon0, today, 'busy'), [a, c] = t.you >= 1800 ? [t.you, t.busy] : [week, wkBusy], r = a ? c / a : null;
+    let lever = '';
+    if (r != null) {
+      let mine = 0, nudges = 0; const rep = {};
+      for (const dd of DATA.days) if (dd.d >= mon0 && dd.d <= today) for (const v of Object.values(dd.p)) {
+        mine += v.mine || 0; nudges += v.nudges || 0;
+        for (const [k, n] of Object.entries(v.prompts || {})) { const R = rep[k] || (rep[k] = { n: 0, days: new Set() }); R.n += n; R.days.add(dd.d); }
+      }
+      const repeats = Object.values(rep).filter((R) => R.n >= 3 && R.days.size >= 2).length;
+      const [st, head, base] = r < 0.7
+        ? ['warn', 'Claude keeps waiting for you', [['plan', 'hand over the whole task: goal, plan, how to check it'], ['auto', 'auto mode and <b>/fewer-permission-prompts</b>']]]
+        : r < 1 ? ['', 'Claude works about as much as you', [['break', 'leave it a long task before you go'], ['/loop', 'checks you repeat by hand']]]
+        : ['ok', 'Claude works more than you', [['/schedule', 'long tasks for the night and the cloud']]];
+      const mineTips = [];
+      if (mine >= 20 && nudges / mine >= 0.1) mineTips.push([`${ru(100 * nudges / mine, 0)} %`, 'of messages are “yes”, “go on”: give whole tasks']);
+      if (repeats) mineTips.push([`${ru(repeats)}×`, 'requests you retype: make them skills']);
+      const moves = mineTips.map(([k, x]) => `<dt class="me">${k}</dt><dd>${x}</dd>`).concat(base.map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`)).slice(0, 3);
+      lever = `<div class="rest-lever" data-st="${st}"><h4>${head}</h4>` +
+        `<div class="rest-ratio"><span><b><i class="me">${ru(a / 3600, 1)}</i><s>/</s><i class="cl">${ru(c / 3600, 1)}</i></b>` +
+        `<i class="me">you</i> / <i class="cl">Claude</i>${t.you >= 1800 ? ', h today' : ', h this week'}</span>` +
+        `<span>${t.you >= 1800 && week ? `this week <u><i class="me">${ru(week / 3600, 1)}</i> / <i class="cl">${ru(wkBusy / 3600, 1)}</i></u>` : ''}</span></div>` +
+        `<div class="rest-todo"><span>What to do</span><dl>${moves.join('')}</dl></div></div>`;
+    }
     const box = $('c-rest');
     box.dataset.st = state;
     box.classList.remove('moving');   // only a step between weeks animates, not the first draw
@@ -878,7 +923,7 @@ const DATA = /*__DATA__*/null;
       (t.you > N ? `<i class="over" style="left:${at(N)};width:calc(${at(t.you)} - ${at(N)})"></i>` : '') +
       `<u style="left:${at(N)}"></u></div>` +
       `<div class="rest-busy"><i style="width:${at(t.busy)}"></i></div>` +
-      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(N)}">${N / 3600} h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div></div>` +
+      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(N)}">${N / 3600} h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div>${lever}</div>` +
       `<div class="rest-wk"><div class="rest-read"></div>` +
       `<div class="rest-key"><span><i></i>day</span><span><i class="n"></i>night</span><span><i class="o"></i>over the norm</span><span><i class="d"></i>norm</span></div>` +
       `<div class="rest-cols">${'<div><i class="day"></i><i class="over"></i><i class="night"></i><b></b></div>'.repeat(7)}` +

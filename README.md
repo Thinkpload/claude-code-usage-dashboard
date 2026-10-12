@@ -41,7 +41,9 @@ no API key, no network. Pure Python, no dependencies.
 - **Did any of it ship?** Commits from your local repos overlaid on the same timeline.
 - **How much of me is going into this, and when do I rest?** A "Your time and rest" card first on the
   board: your own time at Claude with parallel sessions merged, how long Claude was busy, your
-  longest stretch without a break and the night hours. Two tips in the advice block point at manual
+  longest stretch without a break and the night hours. The day's norm is 8 h on weekdays and 3 h at
+  the weekend; the week chart pages back through history; a line under today reads how many hours
+  Claude worked per hour of you and what to hand over so it works more and you less. Two tips in the advice block point at manual
   work: requests you keep retyping and short "continue"-style nudges. An optional `--break-check` hook
   (`UserPromptSubmit`) reminds you to stand up after 90 minutes without a break.
 
