@@ -208,9 +208,9 @@ def split_by_day(a, b):
     """(start, end) -> (day, start, end) pieces cut at local midnight."""
     while a.date() < b.date():
         mid = datetime.combine(a.date() + timedelta(days=1), datetime.min.time(), tzinfo=a.tzinfo)
-        yield a.strftime("%Y-%m-%d"), a, mid
+        yield a.date().isoformat(), a, mid
         a = mid
-    yield a.strftime("%Y-%m-%d"), a, b
+    yield a.date().isoformat(), a, b
 
 
 def presence_days(busy, yours, cfg, acts=()):
@@ -231,7 +231,7 @@ def presence_days(busy, yours, cfg, acts=()):
         return (b - a).total_seconds() <= 3600 and (b - last).total_seconds() <= brk
 
     for a, b in merge_intervals([(a, b) for a, b in zip(yours, yours[1:]) if held(a, b)]):
-        start = out[a.strftime("%Y-%m-%d")]
+        start = out[a.date().isoformat()]
         start["longest"] = max(start["longest"], (b - a).total_seconds())
         for d, x, y in split_by_day(a, b):
             out[d]["you"] += (y - x).total_seconds()
@@ -240,22 +240,35 @@ def presence_days(busy, yours, cfg, acts=()):
     return dict(out)
 
 
-def scan(cfg, projects_dir=PROJECTS_DIR, presence=None):
+def scan(cfg, projects_dir=PROJECTS_DIR, presence=None, since=None, report=None):
     """day -> project -> {sec, hours[24], msgs, sessions, models}. One API call = one requestId.
-    A dict passed as presence is filled with presence_days() over every project."""
+    A dict passed as presence is filled with presence_days() over every project.
+    With since (a date) only days from it on come back, and a file untouched since the midnight before it is not
+    read: its records are all older, and a gap or a stretch reaching into since starts no earlier than that midnight.
+    report(share of bytes read) follows the progress."""
     days = defaultdict(lambda: defaultdict(new_project_day))
     idle = timedelta(minutes=cfg["idle_minutes"])
     busy, yours, acts = [], [], []  # every session's active gaps; the moments of your own messages; of every record
+    cutoff = datetime.combine(since - timedelta(days=1), datetime.min.time(), tzinfo=tz(cfg)).timestamp() if since else None
+    todo = []                       # (project dir, [(file, size)]) still to read
     for pd in sorted(glob.glob(os.path.join(projects_dir, "*"))):
-        if not os.path.isdir(pd):
-            continue
+        if os.path.isdir(pd):
+            todo.append((pd, [(f, st.st_size, cutoff is not None and st.st_mtime < cutoff)
+                              for f in glob.glob(os.path.join(pd, "**", "*.jsonl"), recursive=True) for st in [os.stat(f)]]))
+    total = sum(n for _, files in todo for _, n, skip in files if not skip) or 1
+    done = 0
+    for pd, files in todo:
         name = project_name(os.path.basename(pd), cfg)
         seen = set()
         stamps = defaultdict(list)  # session -> timestamps of every record (subagents included)
         sess = {}                   # session -> {calls, first_day, first_units}, for cold starts
-        for f in glob.glob(os.path.join(pd, "**", "*.jsonl"), recursive=True):
+        skipped = set()             # sessions with a file not read: where they started is unknown
+        for f, size, skip in files:
             rel = os.path.relpath(f, pd).replace("\\", "/")
             sid = rel.split("/")[0].replace(".jsonl", "")
+            if skip:
+                skipped.add(sid)
+                continue
             pending = {}            # Skill tool-call id -> skill name
             loaded = {}             # skill -> size of its text in tokens (stays in context for the rest of the file)
             with open(f, encoding="utf8") as fh:
@@ -270,7 +283,7 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None):
                     dt = parse_ts(t, cfg)
                     stamps[sid].append(dt)
                     acts.append(dt)
-                    d = dt.strftime("%Y-%m-%d")
+                    d = dt.date().isoformat()
                     typ = r.get("type")
                     if typ == "user":
                         c = r.get("message", {}).get("content")
@@ -327,24 +340,33 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None):
                             ins["skills"][skill] += size * w["cache_read"] / 1e6
                         si = sess.setdefault(sid, {"calls": 0, "first_day": d, "first_units": units})
                         si["calls"] += 1
+            done += size
+            if report:
+                report(done / total)
         for sid, st in stamps.items():
             st.sort()
             for a, b in zip(st, st[1:]):
                 g = (b - a).total_seconds()
                 if g <= idle.total_seconds():
-                    pdv = days[a.strftime("%Y-%m-%d")][name]
+                    pdv = days[a.date().isoformat()][name]
                     pdv["sec"] += g
                     pdv["hours"][a.hour] += g
                     busy.append((a, b))
-            for dt in {s.strftime("%Y-%m-%d") for s in st}:
+            for dt in {s.date().isoformat() for s in st}:
                 days[dt][name]["sessions"].add(sid)
         for sid, si in sess.items():
+            if sid in skipped:
+                continue
             ins = days[si["first_day"]][name]["ins"]
             ins["sessions"] += 1
             ins["sessions_short"] += si["calls"] < 3
             ins["first_call_units"] += si["first_units"]
+    if since:
+        days = {d: v for d, v in days.items() if d >= since.isoformat()}
     if presence is not None:
-        presence.update(presence_days(busy, yours, cfg, acts))
+        presence.update({d: v for d, v in presence_days(busy, yours, cfg, acts).items() if not since or d >= since.isoformat()})
+    if report:
+        report(1.0)
     return days
 
 

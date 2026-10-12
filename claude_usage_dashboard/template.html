@@ -327,7 +327,7 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .advice li .tag.ok{background:color-mix(in srgb,var(--accent-2) 12%,var(--surface));color:var(--accent-2)}
 .advice li b{color:var(--ink);font-weight:700}
 .advice li .how{color:var(--ink-2)}
-/* your time and rest: a verdict in the state's colour, today against an 8-hour day, the week against the same norm */
+/* your time and rest: a verdict in the state's colour, today against its norm (8 h, 3 h at the weekend), the weeks against the same */
 .rest{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:26px 44px;--st:var(--accent-2)}
 .rest[data-st="warn"]{--st:var(--warn)}
 .rest[data-st="bad"]{--st:var(--bad)}
@@ -358,10 +358,25 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-cols>div.later{opacity:.45}
 .rest-cols>div i{position:absolute;left:0;right:0}
 .rest-cols i.day{background:var(--accent-2)}
-.rest-cols i.night{background:var(--r1)}
+.rest-cols i.night{bottom:0;background:var(--r1)}
 .rest-cols i.over{background:var(--bad)}
 .rest-norm{position:absolute;left:-4px;right:-4px;border-top:1.5px dashed var(--ink-2);pointer-events:none}
 .rest-norm em{position:absolute;right:0;top:-18px;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--ink-2);background:var(--surface);padding:0 4px}
+/* the norm steps down at the weekend: 7 columns and 6 gaps of 8px, the line runs 4px past its outer columns */
+.rest-norm.wd{right:calc((100% - 48px) * 2 / 7 + 12px)}
+.rest-norm.we{left:calc((100% - 48px) * 5 / 7 + 36px)}
+/* the week switch sits in the card's header: the dates, then both arrows side by side as one control */
+.rest-nav{align-self:center;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);cursor:default}
+.rest-nav>div{display:flex;border:1px solid var(--axis);border-radius:999px;overflow:hidden;background:var(--surface-2)}
+.rest-nav button{width:40px;height:32px;padding:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:18px;line-height:1;cursor:pointer}
+.rest-nav button+button{border-left:1px solid var(--axis)}
+.rest-nav button:hover:enabled{background:color-mix(in srgb,var(--accent) 22%,var(--surface-2))}
+.rest-nav button:disabled{color:var(--muted);opacity:.45;cursor:default}
+.rest-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (prefers-reduced-motion:no-preference){
+  .rest.moving .rest-cols i,.rest.moving .rest-norm{transition:bottom .45s ease,height .45s ease}
+  .rest.moving .rest-cols>div{transition:opacity .45s}
+  .rest.moving .rest-stretch i{transition:left .45s ease}}
 .rest-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center}
 .rest-days b{color:var(--ink);font-weight:600}
 .rest-pair{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;padding-top:14px;border-top:1px solid var(--hair)}
@@ -404,7 +419,7 @@ footer.method b{color:var(--ink-2)}
 
   <section class="board" id="board" aria-label="Cards">
     <div class="card" id="k-rest" data-span="12">
-      <header><h2>Your time and rest</h2><span class="note">today and this week, whatever the period above</span></header>
+      <header><h2>Your time and rest</h2><div class="rest-nav" id="rest-nav"></div></header>
       <div class="rest" id="c-rest"></div>
     </div>
 
@@ -559,7 +574,7 @@ const DATA = /*__DATA__*/null;
   // ---------- tooltip ----------
   const tip = $('tip');
   function bindTip(node, html) {
-    const show = (ev) => { tip.innerHTML = html; tip.hidden = false; move(ev); };
+    const show = (ev) => { tip.innerHTML = typeof html === 'function' ? html() : html; tip.hidden = false; move(ev); };
     const move = (ev) => { const x = (ev.clientX ?? 0) + 14, y = (ev.clientY ?? 0) + 14; tip.style.left = Math.min(x, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = Math.min(y, innerHeight - tip.offsetHeight - 8) + 'px'; };
     const hide = () => { tip.hidden = true; };
     node.addEventListener('mouseenter', show); node.addEventListener('mousemove', move); node.addEventListener('mouseleave', hide);
@@ -800,20 +815,21 @@ const DATA = /*__DATA__*/null;
   // DATA.presence[day]: you = time between your own messages, all sessions merged, waiting for Claude included,
   // unless a break: over break_minutes of quiet after Claude's last move, or a gap over an hour; busy = any session
   // running, parallel ones counted once; longest = your longest stretch without a break; night = you at 00-06
+  let restBack = 0;   // how many weeks back the chart on the right shows; its arrows move it
   function rest() {
     const day = (d) => (DATA.presence || {})[d] || { you: 0, busy: 0, longest: 0, night: 0 };
     const fold = (from, to, k, f) => { let s = 0; for (let d = from; d <= to; d = addDays(d, 1)) s = f(s, day(d)[k]); return s; };
     const sum = (from, to, k) => fold(from, to, k, (a, b) => a + b), most = (from, to, k) => fold(from, to, k, Math.max);
-    const today = DATA.today, mon = addDays(today, -((new Date(today + 'T00:00:00').getDay() + 6) % 7)), t = day(today);
-    const week = sum(mon, today, 'you'), long = most(mon, today, 'longest'), night = sum(mon, today, 'night');
-    const past = [1, 2, 3, 4].map((i) => sum(addDays(mon, -7 * i), addDays(mon, 6 - 7 * i), 'you')).filter((s) => s > 0);
-    const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : null;
+    const today = DATA.today, mon0 = addDays(today, -((new Date(today + 'T00:00:00').getDay() + 6) % 7)), t = day(today);
+    const week = sum(mon0, today, 'you'), long = most(mon0, today, 'longest'), night = sum(mon0, today, 'night');
     let streak = 0;   // a day off is a day with under 30 min of you; a young today does not break the run
     for (let d = t.you >= 1800 ? today : addDays(today, -1); day(d).you >= 1800; d = addDays(d, -1)) streak++;
-    const NORM = 8 * 3600;
+    const NORM = 8 * 3600, NORM_OFF = 3 * 3600;   // a weekday and a weekend day
+    const norm = (d) => (new Date(d + 'T00:00:00').getDay() % 6 ? NORM : NORM_OFF), N = norm(today);
+    const nDay = N === NORM ? 'an 8-hour day' : 'a 3-hour weekend day';
     // the verdict: the most pressing reason leads, the rest follow as one-liners
     const why = [];
-    if (t.you > NORM) why.push(['bad', 'Time to stop for today', `${fmtH(t.you)} at Claude today, ${fmtH(t.you - NORM)} past an 8-hour day. What is left will keep until tomorrow, and tired prompts cost more rework than they save.`, `${fmtH(t.you)} today, past an 8-hour day`]);
+    if (t.you > N) why.push(['bad', 'Time to stop for today', `${fmtH(t.you)} at Claude today, ${fmtH(t.you - N)} past ${nDay}. What is left will keep until tomorrow, and tired prompts cost more rework than they save.`, `${fmtH(t.you)} today, past ${nDay}`]);
     if (long > 2 * 3600) why.push(['bad', 'Stand up for a while', `${fmtHM(long)} in one go without a break this week. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtHM(long)} in one go without a break`]);
     if (week > 45 * 3600) why.push(['warn', 'Plan a lighter day', `${fmtH(week)} at Claude this week: heavier than a full working week. Leave tomorrow lighter, or take it without Claude.`, `${fmtH(week)} this week, over 45 h`]);
     if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under 30 minutes at Claude.`, `${streak} days in a row without a day off`]);
@@ -821,18 +837,9 @@ const DATA = /*__DATA__*/null;
     const [state, verdict, reason] = why[0] || ['ok', 'Your pace is fine', 'No long days, no marathons without a break, no night work this week.'];
     const box = $('c-rest');
     box.dataset.st = state;
-    // today on a 12-hour scale (longer if the day ran past it), the 8-hour day marked
+    box.classList.remove('moving');   // only a step between weeks animates, not the first draw
+    // today on a 12-hour scale (longer if the day ran past it), today's norm marked
     const scale = Math.max(12 * 3600, t.you, t.busy), at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
-    // the week on one scale with the same norm; night sits at the foot of each column
-    const days = [...Array(7)].map((_, i) => addDays(mon, i));
-    const top = Math.max(10 * 3600, ...days.map((d) => day(d).you)) * 1.08, y = (s) => `${(100 * s / top).toFixed(2)}%`;
-    const cols = days.map((d) => {
-      const v = day(d), n = Math.min(v.night, v.you), over = Math.max(0, v.you - NORM);
-      return `<div class="${d > today ? 'later' : ''}" tabindex="${d > today ? -1 : 0}">` +
-        `<i class="day" style="bottom:${y(n)};height:${y(v.you - n - over)}"></i>` +
-        (over ? `<i class="over" style="bottom:${y(v.you - over)};height:${y(over)}"></i>` : '') +
-        (n ? `<i class="night" style="bottom:0;height:${y(n)}"></i>` : '') + '</div>';
-    }).join('');
     const span = 3 * 3600, mark = (s) => `${(100 * Math.min(s, span) / span).toFixed(2)}%`;
     const dots = [...Array(14)].map((_, i) => addDays(today, i - 13))
       .map((d) => `<i class="${day(d).you >= 1800 ? '' : 'off'}${d === today ? ' now' : ''}" title="${fmtDate(d)}: ${fmtH(day(d).you)}"></i>`).join('');
@@ -840,23 +847,63 @@ const DATA = /*__DATA__*/null;
       `<div class="rest-say"><h3>${verdict}</h3><p>${reason}</p>` +
       (why.length > 1 ? `<ul>${why.slice(1).map(([s, , , short]) => `<li data-st="${s}">${short}</li>`).join('')}</ul>` : '') +
       `<div class="rest-today"><div class="rest-read"><span><b>${fmtH(t.you)}</b>you today</span><span>Claude busy ${fmtH(t.busy)}</span></div>` +
-      `<div class="rest-track"><i style="width:${at(Math.min(t.you, NORM))}"></i>` +
-      (t.you > NORM ? `<i class="over" style="left:${at(NORM)};width:calc(${at(t.you)} - ${at(NORM)})"></i>` : '') +
-      `<u style="left:${at(NORM)}"></u></div>` +
+      `<div class="rest-track"><i style="width:${at(Math.min(t.you, N))}"></i>` +
+      (t.you > N ? `<i class="over" style="left:${at(N)};width:calc(${at(t.you)} - ${at(N)})"></i>` : '') +
+      `<u style="left:${at(N)}"></u></div>` +
       `<div class="rest-busy"><i style="width:${at(t.busy)}"></i></div>` +
-      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(NORM)}">8 h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div></div>` +
-      `<div class="rest-wk"><div class="rest-read"><span><b>${fmtH(week)}</b>you this week</span><span>${avg != null ? `${fmtH(avg)} a week on average before` : ''}</span></div>` +
-      `<div class="rest-cols">${cols}<span class="rest-norm" style="bottom:${y(NORM)}"><em>8 h</em></span></div>` +
-      `<div class="rest-days">${days.map((d, i) => d === today ? `<b>${DOW[i]}</b>` : `<span>${DOW[i]}</span>`).join('')}</div>` +
-      `<div class="rest-pair"><div><span>Longest stretch without a break: <b>${fmtHM(t.longest)}</b> today, <b>${fmtHM(long)}</b> this week</span>` +
-      `<div class="rest-stretch" style="--a:${mark(90 * 60)};--b:${mark(2 * 3600)}"><i class="wk" style="left:${mark(long)}"></i><i style="left:${mark(t.longest)}"></i></div>` +
+      `<div class="rest-scale"><span style="left:0">0</span><span style="left:${at(N)}">${N / 3600} h day</span><span style="left:100%;transform:translateX(-100%)">${ru(scale / 3600)} h</span></div></div></div>` +
+      `<div class="rest-wk"><div class="rest-read"></div>` +
+      `<div class="rest-cols">${'<div><i class="day"></i><i class="over"></i><i class="night"></i></div>'.repeat(7)}` +
+      `<span class="rest-norm wd"><em>8 h</em></span><span class="rest-norm we"><em>3 h</em></span></div>` +
+      `<div class="rest-days"></div>` +
+      `<div class="rest-pair"><div><span class="rest-long"></span>` +
+      `<div class="rest-stretch" style="--a:${mark(90 * 60)};--b:${mark(2 * 3600)}"><i class="wk"></i><i></i></div>` +
       `<div class="rest-scale"><span style="left:0">0</span><span style="left:${mark(90 * 60)}">1:30</span><span style="left:${mark(2 * 3600)}">2:00</span><span style="left:100%;transform:translateX(-100%)">3:00</span></div></div>` +
-      `<div><span><b>${ru(streak)}</b> days in a row without a day off · <b>${fmtH(night)}</b> at night this week</span>` +
+      `<div><span><b>${ru(streak)}</b> days in a row without a day off · <span class="rest-night"></span></span>` +
       `<div class="rest-dots">${dots}</div><span class="muted">the last two weeks; a hollow dot is a day off (under 30 min)</span></div></div></div>`;
-    box.querySelectorAll('.rest-cols>div:not(.later)').forEach((c, i) => {
+    const nav = $('rest-nav');   // refilled on every draw, so the arrows never collect a second listener
+    nav.innerHTML = '<span></span><div><button type="button" data-step="1" aria-label="previous week">‹</button><button type="button" data-step="-1" aria-label="next week">›</button></div>';
+    // the week on the right: the columns are drawn once and a step only moves their heights, so the old week visibly
+    // turns into the new one; night sits at the foot of each column, red is past the day's norm
+    const cols = [...box.querySelectorAll('.rest-cols>div')], [prev, next] = nav.querySelectorAll('button');
+    const [wkMark, nowMark] = box.querySelectorAll('.rest-stretch i');
+    const first = Object.keys(DATA.presence || {}).sort()[0] || today;
+    let days;
+    const show = () => {
+      const mon = addDays(mon0, -7 * restBack), end = restBack ? addDays(mon, 6) : today, now = !restBack;
+      days = [...Array(7)].map((_, i) => addDays(mon, i));
+      const wk = sum(mon, end, 'you'), wkLong = most(mon, end, 'longest'), wkNight = sum(mon, end, 'night');
+      const past = [1, 2, 3, 4].map((i) => sum(addDays(mon, -7 * i), addDays(mon, 6 - 7 * i), 'you')).filter((s) => s > 0);
+      const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : null;
+      const top = Math.max(10 * 3600, ...days.map((d) => day(d).you)) * 1.08, y = (s) => `${(100 * s / top).toFixed(2)}%`;
+      days.forEach((d, i) => {
+        const v = day(d), n = Math.min(v.night, v.you), over = Math.max(0, v.you - norm(d)), [di, oi, ni] = cols[i].children;
+        cols[i].className = d > today ? 'later' : '';
+        cols[i].tabIndex = d > today ? -1 : 0;
+        Object.assign(di.style, { bottom: y(n), height: y(v.you - n - over) });
+        Object.assign(oi.style, { bottom: y(v.you - over), height: y(over) });
+        ni.style.height = y(n);
+      });
+      box.querySelector('.rest-norm.wd').style.bottom = y(NORM);
+      box.querySelector('.rest-norm.we').style.bottom = y(NORM_OFF);
+      nav.firstChild.textContent = `${fmtDate(mon)}–${fmtDate(days[6])}`;
+      prev.disabled = addDays(mon, -1) < first;
+      next.disabled = now;
+      box.querySelector('.rest-wk>.rest-read').innerHTML = `<span><b>${fmtH(wk)}</b>${now ? 'you this week' : 'you that week'}</span><span>${avg != null ? `${fmtH(avg)} a week on average before` : ''}</span>`;
+      box.querySelector('.rest-days').innerHTML = days.map((d, i) => d === today ? `<b>${DOW[i]}</b>` : `<span>${DOW[i]}</span>`).join('');
+      box.querySelector('.rest-long').innerHTML = `Longest stretch without a break: <b>${fmtHM(now ? t.longest : wkLong)}</b>${now ? ` today, <b>${fmtHM(wkLong)}</b> this week` : ' that week'}`;
+      wkMark.style.left = mark(wkLong);
+      nowMark.style.left = mark(t.longest);
+      nowMark.hidden = !now;
+      box.querySelector('.rest-night').innerHTML = `<b>${fmtH(wkNight)}</b>${now ? ' at night this week' : ' at night that week'}`;
+    };
+    show();
+    [prev, next].forEach((b) => b.addEventListener('click', () => { restBack += +b.dataset.step; box.classList.add('moving'); show(); }));
+    cols.forEach((c, i) => bindTip(c, () => {
       const v = day(days[i]);
-      bindTip(c, `<b>${DOW[i]} ${fmtDate(days[i])}</b><br>you ${fmtH(v.you)}${v.night ? ` · at night ${fmtH(v.night)}` : ''}<br>Claude busy ${fmtH(v.busy)}<br>longest stretch ${fmtHM(v.longest)}`);
-    });
+      if (days[i] > today) return `<b>${DOW[i]} ${fmtDate(days[i])}</b>`;
+      return `<b>${DOW[i]} ${fmtDate(days[i])}</b><br>you ${fmtH(v.you)}${v.night ? ` · at night ${fmtH(v.night)}` : ''}<br>Claude busy ${fmtH(v.busy)}<br>longest stretch ${fmtHM(v.longest)}`;
+    }));
   }
 
   // ---------- readout row ----------

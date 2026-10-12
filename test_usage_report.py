@@ -416,6 +416,40 @@ def test_waiting_for_claude_is_your_time_but_not_overnight_runs():
     assert p["you"] == 2700 and p["longest"] == 2700, p
 
 
+def test_scan_since_reads_only_recent_files_and_days():
+    """The refresh button's quick build: a file untouched since the day before `since` is not read, and only days
+    from `since` on come back, so history.json keeps the older ones; a session with a skipped file is not a cold start."""
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "old", [say("2026-09-03T09:00:00Z", "a record the skipped file holds"), asst("2026-09-03T09:01:00Z", "o1")])
+        write_session(root, SLUG, "s1", [asst("2026-09-01T09:00:00Z", "a1")])
+        write_session(root, SLUG, "new", [asst("2026-09-02T09:00:00Z", "n1"), asst("2026-09-03T09:00:00Z", "n2"), asst("2026-09-03T09:02:00Z", "n3")])
+        write_session(root, SLUG + "/s1", "s1", [asst("2026-09-03T10:00:00Z", "a2")])     # s1/s1.jsonl: s1's subagent
+        stale = datetime(2026, 9, 1, 12, tzinfo=timezone.utc).timestamp()
+        for sid in ("old", "s1"):
+            os.utime(os.path.join(root, SLUG, sid + ".jsonl"), (stale, stale))
+        seen = []
+        pres = {}
+        days = ur.scan(CFG, root, presence=pres, since=date(2026, 9, 3), report=seen.append)
+    assert sorted(days) == ["2026-09-03"] and sorted(pres) == ["2026-09-03"], (sorted(days), sorted(pres))
+    v = days["2026-09-03"]["acme-api"]
+    assert v["models"]["claude-opus-5"]["calls"] == 3 and v["mine"] == 0, "n2, n3 and a2; the stale file is not read"
+    assert v["ins"]["sessions"] == 0, "new started on 09-02 and s1 has a skipped file: neither is a cold start on 09-03"
+    assert seen and seen[-1] == 1.0 and seen == sorted(seen), seen
+
+
+def test_progress_is_a_script_the_page_can_load():
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            ur.progress(1234, "scan", 41.6)
+            body = open(os.path.join(tmp, "progress.js"), encoding="utf8").read()
+        finally:
+            ur.set_out_dir(old)
+    assert body.startswith("window.PROGRESS=") and body.rstrip().endswith(";"), body
+    assert json.loads(body.strip()[len("window.PROGRESS="):-1]) == {"run": 1234, "stage": "scan", "pct": 42}, body
+
+
 def test_merge_keeps_fuller_presence():
     h = ur.merge({"days": {}}, {}, {"2026-09-01": {"you": 100.4, "busy": 500, "longest": 100, "night": 0}})
     h = ur.merge(h, {}, {"2026-09-01": {"you": 50, "busy": 200, "longest": 50, "night": 0}})
