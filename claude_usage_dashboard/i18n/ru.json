@@ -485,6 +485,9 @@
  "['/loop', 'checks you repeat by hand']": "['/loop', 'для проверок, которые повторяешь руками']",
  "'Claude works more than you'": "'Claude работает больше тебя'",
  "['/schedule', 'long tasks for the night and the cloud']": "['/schedule', 'длинные задачи — на ночь и в облако']",
+ "// cloud credit still burning: worth it only where Claude runs long, not where it waits for you": "// облачный кредит ещё горит: он к месту, только где Claude работает долго, а не ждёт тебя",
+ "`cloud credit${ccEnd ? ` until ${": "`облачный кредит${ccEnd ? ` до ${",
+ "}` : ''}: long tasks to a cloud session`": "}` : ''}: длинные задачи — в облачную сессию`",
  "'of messages are “yes”, “go on”: give whole tasks'": "'сообщений — «да», «продолжай»: давай задачи целиком'",
  "'requests you retype: make them skills'": "'запросы, что ты набираешь снова: сделай скиллы'",
  "<span>Recommendations</span>": "<span>Рекомендации</span>",
@@ -493,8 +496,8 @@
  "<div class=\"rest-vs\"><i class=\"me\">you</i>": "<div class=\"rest-vs\"><i class=\"me\">ты</i>",
  "/* today's pair: each name centred over its own figure */": "/* сегодняшняя пара: каждое имя по центру над своей цифрой */",
  "<span>h today</span>": "<span>ч сегодня</span>",
- "// one line: you in blue up to your hours, Claude in orange where it ran longer; your hours past the norm hatched red": "// одна линия: ты синим до своих часов, Claude оранжевым там, где он работал дольше; твои часы за нормой штрихуются красным",
  "// the week below it: shares only, written inside, the even split marked": "// неделя под ней: только доли, вписаны внутрь, ровная половина отмечена",
+ "// two bars on that scale, you over Claude, one norm tick through both; past it each is hatched, yours in red": "// две полосы на этой шкале, ты над Claude, одна отметка нормы через обе; за ней обе штрихуются, твоя — красным",
  "// who is ahead, not a fraction": "// кто впереди, а не дробь",
  "</u> h this week</span>": "</u> ч за неделю</span>"
 }
