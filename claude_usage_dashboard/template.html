@@ -870,8 +870,8 @@ const DATA = /*__DATA__*/null;
     const sum = (from, to, k) => fold(from, to, k, (a, b) => a + b), most = (from, to, k) => fold(from, to, k, Math.max);
     const today = DATA.today, mon0 = addDays(today, -((new Date(today + 'T00:00:00').getDay() + 6) % 7)), t = day(today);
     const week = sum(mon0, today, 'you'), long = most(mon0, today, 'longest'), night = sum(mon0, today, 'night');
-    let streak = 0;   // a day off is a day with under 30 min of you; a young today does not break the run
-    for (let d = t.you >= 1800 ? today : addDays(today, -1); day(d).you >= 1800; d = addDays(d, -1)) streak++;
+    let streak = 0, off = t.you >= 3600 ? today : addDays(today, -1);   // a day off is a day with under an hour of you; a young today does not break the run
+    for (; day(off).you >= 3600; off = addDays(off, -1)) streak++;
     const NORM = 8 * 3600, NORM_OFF = 3 * 3600;   // a weekday and a weekend day
     const norm = (d) => (new Date(d + 'T00:00:00').getDay() % 6 ? NORM : NORM_OFF), N = norm(today);
     const nDay = N === NORM ? 'an 8-hour day' : 'a 3-hour weekend day';
@@ -880,7 +880,7 @@ const DATA = /*__DATA__*/null;
     if (t.you > N) why.push(['bad', 'Time to stop for today', `${fmtH(t.you)} at Claude today, ${fmtH(t.you - N)} past ${nDay}. What is left will keep until tomorrow, and tired prompts cost more rework than they save.`, `${fmtH(t.you)} today, past ${nDay}`]);
     if (long > 2 * 3600) why.push(['bad', 'Stand up for a while', `${fmtHM(long)} in one go without a break this week. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtHM(long)} in one go without a break`]);
     if (week > 45 * 3600) why.push(['warn', 'Plan a lighter day', `${fmtH(week)} at Claude this week: heavier than a full working week. Leave tomorrow lighter, or take it without Claude.`, `${fmtH(week)} this week, over 45 h`]);
-    if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under 30 minutes at Claude.`, `${streak} days in a row without a day off`]);
+    if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under an hour at Claude.`, `${streak} days in a row without a day off`]);
     if (night >= 1800) why.push(['warn', 'Move the work out of the night', `${fmtH(night)} at night this week. Night work shifts sleep, and the next day with it.`, `${fmtH(night)} at night this week`]);
     const [state, verdict, reason] = why[0] || ['ok', 'Your pace is fine', 'No long days, no marathons without a break, no night work this week.'];
     // Claude per hour of you: today once there is half an hour of you, else the week; moves drawn from your own logs
@@ -913,8 +913,10 @@ const DATA = /*__DATA__*/null;
     box.classList.remove('moving');   // only a step between weeks animates, not the first draw
     // today on a 12-hour scale (longer if the day ran past it), today's norm marked
     const scale = Math.max(12 * 3600, t.you, t.busy), at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
-    const dots = [...Array(14)].map((_, i) => addDays(today, i - 13))
-      .map((d) => `<i class="${day(d).you >= 1800 ? '' : 'off'}${d === today ? ' now' : ''}" title="${fmtDate(d)}: ${fmtH(day(d).you)}"></i>`).join('');
+    // two weeks, or the whole run back to the day off before it, so a long run keeps adding dots
+    const run = [];
+    for (let d = off < addDays(today, -13) ? off : addDays(today, -13); d <= today; d = addDays(d, 1)) run.push(d);
+    const dots = run.map((d) => `<i class="${day(d).you >= 3600 ? '' : 'off'}${d === today ? ' now' : ''}" title="${fmtDate(d)}: ${fmtH(day(d).you)}"></i>`).join('');
     box.innerHTML =
       `<div class="rest-say"><h3>${verdict}</h3><p>${reason}</p>` +
       (why.length > 1 ? `<ul>${why.slice(1).map(([s, , , short]) => `<li data-st="${s}">${short}</li>`).join('')}</ul>` : '') +
@@ -932,7 +934,7 @@ const DATA = /*__DATA__*/null;
       `<div class="rest-pair"><div><span class="rest-long"></span>` +
       `<div class="rest-stretch"><i class="wk"></i><i></i></div><div class="rest-scale"></div></div>` +
       `<div><span><b>${ru(streak)}</b> days in a row without a day off · <span class="rest-night"></span></span>` +
-      `<div class="rest-dots">${dots}</div><span class="muted">the last two weeks; a hollow dot is a day off (under 30 min)</span></div></div></div>`;
+      `<div class="rest-dots">${dots}</div><span class="muted">two weeks, or the whole run if longer; a hollow dot is a day off (under an hour)</span></div></div></div>`;
     const nav = $('rest-nav');   // refilled on every draw, so the arrows never collect a second listener
     nav.innerHTML = '<span></span><div><button type="button" data-step="1" aria-label="previous week">‹</button><button type="button" data-step="-1" aria-label="next week">›</button></div>';
     // the week on the right: the columns are drawn once and a step only moves their heights, so the old week visibly
