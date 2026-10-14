@@ -922,8 +922,8 @@ const DATA = /*__DATA__*/null;
     const box = $('c-rest');
     box.dataset.st = state;
     box.classList.remove('moving');   // only a step between weeks animates, not the first draw
-    // today on a 12-hour scale (longer if the day ran past it), today's norm marked
-    const scale = Math.max(12 * 3600, t.you, t.busy), at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
+    // today on a scale of 12 hours that grows in 2-hour steps with the longer bar, half an hour to spare, up to 24; today's norm marked
+    const scale = Math.min(24, Math.max(12, 2 * Math.ceil((Math.max(t.you, t.busy) / 3600 + 0.5) / 2))) * 3600, at = (s) => `${(100 * Math.min(s, scale) / scale).toFixed(2)}%`;
     const vs = (a, b) => ru(a / 3600, 1) === ru(b / 3600, 1) ? '=' : a < b ? '<' : '>';   // who is ahead, not a fraction
     const wpct = week + wkBusy ? Math.round(100 * week / (week + wkBusy)) : 0;   // the week below it: shares only, written inside, the even split marked
     // two weeks, or the whole run back to the day off before it, so a long run keeps adding dots
