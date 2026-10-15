@@ -263,7 +263,7 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None, since=None, report=None)
     report(share of bytes read) follows the progress."""
     days = defaultdict(lambda: defaultdict(new_project_day))
     idle = timedelta(minutes=cfg["idle_minutes"])
-    busy, yours, acts = [], [], []  # every session's active gaps; the moments of your own messages; of every record
+    busy, yours, acts = [], [], []  # every session's active gaps; the moments of your own messages; of Claude's replies and tool results
     cutoff = datetime.combine(since - timedelta(days=1), datetime.min.time(), tzinfo=tz(cfg)).timestamp() if since else None
     todo = []                       # (project dir, [(file, size)]) still to read
     for pd in sorted(glob.glob(os.path.join(projects_dir, "*"))):
@@ -297,14 +297,18 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None, since=None, report=None)
                         continue
                     dt = parse_ts(t, cfg)
                     stamps[sid].append(dt)
-                    acts.append(dt)
                     d = dt.date().isoformat()
                     typ = r.get("type")
+                    if typ == "assistant":
+                        acts.append(dt)
                     if typ == "user":
                         c = r.get("message", {}).get("content")
+                        tool = isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c)
+                        if tool:             # queue operations, attachments, snapshots logged before your message are not Claude
+                            acts.append(dt)
                         if r.get("sourceToolUseID") in pending:  # the skill's text arrives as a separate meta record
                             loaded[pending.pop(r["sourceToolUseID"])] = text_size(c)
-                        elif not r.get("isMeta") and not (isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c)):
+                        elif not r.get("isMeta") and not tool:
                             days[d][name]["msgs"] += 1
                             t = prompt_text(c).strip()
                             if is_yours(r, t):

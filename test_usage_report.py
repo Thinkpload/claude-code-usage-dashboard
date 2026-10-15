@@ -416,6 +416,24 @@ def test_waiting_for_claude_is_your_time_but_not_overnight_runs():
     assert p["you"] == 2700 and p["longest"] == 2700, p
 
 
+def test_bookkeeping_before_your_message_is_not_claude_moving():
+    """Claude Code logs a queue operation, an attachment and a file snapshot a moment before each of your messages:
+    none of them is Claude at work, so 30 minutes of quiet after its reply stay a break."""
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [
+            say("2026-09-01T07:00:00Z", "first request of the morning"), asst("2026-09-01T07:05:00Z", "r1"),
+            say("2026-09-01T07:06:00Z", [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]),   # a tool ran: Claude
+            {"type": "queue-operation", "operation": "enqueue", "timestamp": "2026-09-01T07:35:59Z"},
+            {"type": "attachment", "timestamp": "2026-09-01T07:35:59Z"},
+            {"type": "file-history-snapshot", "timestamp": "2026-09-01T07:35:59Z"},
+            say("2026-09-01T07:36:00Z", "back after a break"),                                         # 30 min after the tool
+        ])
+        pres = {}
+        ur.scan(CFG, root, presence=pres)
+    p = pres["2026-09-01"]
+    assert p["you"] == 0 and p["longest"] == 0, p
+
+
 def test_scan_since_reads_only_recent_files_and_days():
     """The refresh button's quick build: a file untouched since the day before `since` is not read, and only days
     from `since` on come back, so history.json keeps the older ones; a session with a skipped file is not a cold start."""

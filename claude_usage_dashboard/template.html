@@ -352,6 +352,7 @@ tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)
 .rest-lever[data-st="warn"]{--lv:var(--warn)}
 .rest-lever[data-st="ok"]{--lv:var(--accent-2)}
 .rest-lever h4{margin:0;font-size:clamp(20px,2.1vw,25px);line-height:1.1;font-weight:800;letter-spacing:-.02em;color:var(--lv);text-wrap:balance}
+.rest-lever p{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.5;max-width:52ch}
 /* you against Claude in readout digits, a sign for who is ahead: you in ice like your bar, Claude in brass like its bar */
 .rest-ratio{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 14px;font-size:12px;color:var(--muted)}
 .rest-ratio u{text-decoration:none;font-family:var(--digit);font-size:13px;font-weight:600}
@@ -889,7 +890,13 @@ const DATA = /*__DATA__*/null;
     // the verdict: the most pressing reason leads, the rest follow as one-liners
     const why = [];
     if (t.you > N) why.push(['bad', 'Time to stop for today', `${fmtH(t.you)} at Claude today, ${fmtH(t.you - N)} past ${nDay}. What is left will keep until tomorrow, and tired prompts cost more rework than they save.`, `${fmtH(t.you)} today, past ${nDay}`]);
-    if (long > 2 * 3600) why.push(['bad', 'Stand up for a while', `${fmtHM(long)} in one go without a break this week. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtHM(long)} in one go without a break`]);
+    // a long stretch today calls to stand up now; one on another day of the week only asks for breaks, naming the day
+    if (t.longest > 2 * 3600) why.push(['bad', 'Stand up for a while', `${fmtH(t.longest)} in one go without a break today. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtH(t.longest)} in one go without a break today`]);
+    else if (long > 2 * 3600) {
+      let ld = mon0; for (let d = mon0; d <= today; d = addDays(d, 1)) if (day(d).longest > day(ld).longest) ld = d;
+      const when = DOW_WHEN[(new Date(ld + 'T00:00:00').getDay() + 6) % 7];
+      why.push(['warn', 'Take breaks', `${fmtH(long)} in one go without a break ${when}. Stand up every 60–90 minutes: a pause of ${DATA.break_minutes} min or more counts as a break here.`, `${fmtH(long)} in one go without a break ${when}`]);
+    }
     if (week > 45 * 3600) why.push(['warn', 'Plan a lighter day', `${fmtH(week)} at Claude this week: heavier than a full working week. Leave tomorrow lighter, or take it without Claude.`, `${fmtH(week)} this week, over 45 h`]);
     if (streak >= 7) why.push(['warn', 'Plan a day off', `${streak} days in a row without a day off. A day off counts here as under an hour at Claude.`, `${streak} days in a row without a day off`]);
     if (night >= 1800) why.push(['warn', 'Move the work out of the night', `${fmtH(night)} at night this week. Night work shifts sleep, and the next day with it.`, `${fmtH(night)} at night this week`]);
@@ -917,6 +924,7 @@ const DATA = /*__DATA__*/null;
         mineTips.push([`$${ru(cc.limit - cc.used, 0)}`, `cloud credit${ccEnd ? ` until ${fmtDate(cc.expires.slice(0, 10))}` : ''}: long tasks to a cloud session`]);
       const moves = mineTips.map(([k, x]) => `<dt class="me">${k}</dt><dd>${x}</dd>`).concat(base.map(([k, x]) => `<dt>${k}</dt><dd>${x}</dd>`)).slice(0, 3);
       lever = `<div class="rest-lever" data-st="${st}"><h4>${head}</h4>` +
+        `<p>${t.you >= 1800 ? 'Today' : 'This week'} Claude was at work ${fmtH(c)}, you ${fmtH(a)}.${st === 'warn' ? ' The rest of the time it waited for your next message.' : ''}</p>` +
         `<div class="rest-todo"><span>Recommendations</span><dl>${moves.join('')}</dl></div></div>`;
     }
     const box = $('c-rest');
