@@ -83,7 +83,9 @@ template, `<div class="bg">` is reserved for an animated background, and the mar
 ## Running it unattended
 
 Any scheduler works — cron, systemd timers, Windows Task Scheduler. Point it at
-`claude-usage-dashboard` twice a day (say, 08:50 and 20:50, catching up on a missed run) so the history
+`claude-usage-dashboard` twice a day (say, 08:50 and 20:50, catching up on a missed run; on Windows also
+add an at-logon trigger — a task that runs only while you're logged on skips the catch-up if the PC boots
+before you sign in) so the history
 and the local dashboard stay fresh and the weekly gauge gets two `/usage` readings a day.
 
 In between, the dashboard's **refresh** button rebuilds it on demand. It needs a one-time
