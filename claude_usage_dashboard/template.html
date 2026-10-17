@@ -1257,7 +1257,7 @@ const DATA = /*__DATA__*/null;
 
   // ---------- where the spend goes ----------
   function insights(A) {
-    const I = { units: 0, ctx: { lt50: 0, '50_100': 0, '100_150': 0, gt150: 0 }, effort: {}, side: 0, cc: 0, skills: {}, sessions: 0, short: 0, first: 0 };
+    const I = { units: 0, ctx: { lt50: 0, '50_100': 0, '100_150': 0, '150_250': 0, '250_400': 0, gt400: 0, gt150: 0 }, effort: {}, side: 0, cc: 0, skills: {}, sessions: 0, short: 0, first: 0 };
     for (const day of A.days) for (const v of Object.values(day.p)) {
       const x = v.ins; if (!x) continue;
       I.units += x.units || 0; I.side += x.side_units || 0; I.cc += x.cache_create_units || 0;
@@ -1280,20 +1280,22 @@ const DATA = /*__DATA__*/null;
     const calls = Object.values(I.effort).reduce((a, b) => a + b, 0);
     const skillTop = Object.entries(I.skills).sort((a, b) => b[1] - a[1]).slice(0, 5);
     const skillAll = Object.values(I.skills).reduce((a, b) => a + b, 0);
-    const mini = (title, rows, fill) => `<h3>${title}</h3><div class="mini">` + rows.map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${pct(v, of).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
+    const mini = (title, rows, fill) => `<h3>${title}</h3><div class="mini">` + rows.filter(([, v, of]) => pct(v, of) >= 0.5).map(([k, v, of]) => `<div><b title="${k}">${k}</b><i style="--w:${pct(v, of).toFixed(1)}%;${fill ? `--fill:${fill}` : ''}"></i><span class="mono">${P(v, of)}</span></div>`).join('') + '</div>';
     let planTips = () => {};
     // effort, stuck to the model: a level is priced only against high on the same model version and at a similar context
     // size, cell by cell, so neither the model mix nor long contexts leak into the coefficient; a cell needs MIN calls a side
     const LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'], MIN = 20;
-    const EC = {}; let eDays = 0;   // level -> model -> context bucket -> [calls, units, output]
+    const EC = {}; let eDays = 0;   // level -> model -> context bucket -> [calls, units, output, cache write units]
     for (const day of A.days) {
       let has = false;
       for (const v of Object.values(day.p)) {
         const x = v.ins && v.ins.effort_cells; if (!x) continue;
+        const cells = Object.entries(x).flatMap(([e, ms]) => Object.entries(ms).flatMap(([m, bs]) => Object.entries(bs).map(([b, c]) => [e, m, b, c])));
+        if (cells.some(([, , , c]) => c.length < 4)) continue;   // logged before cache writes were kept apart: no price to compare
         has = true;
-        for (const [e, ms] of Object.entries(x)) for (const [m, bs] of Object.entries(ms)) for (const [b, c] of Object.entries(bs)) {
-          const t = ((EC[e] ||= {})[m] ||= {})[b] ||= [0, 0, 0];
-          t[0] += c[0]; t[1] += c[1]; t[2] += c[2];
+        for (const [e, m, b, c] of cells) {
+          const t = ((EC[e] ||= {})[m] ||= {})[b] ||= [0, 0, 0, 0];
+          t[0] += c[0]; t[1] += c[1]; t[2] += c[2]; t[3] += c[3];
         }
       }
       eDays += has;
@@ -1310,12 +1312,14 @@ const DATA = /*__DATA__*/null;
       const tot = (e) => Object.values(cells[e] || {}).reduce((s, c) => [s[0] + c[0], s[1] + c[1], s[2] + c[2]], [0, 0, 0]);
       const lv = LEVELS.filter((e) => tot(e)[0]);
       const baseK = tot('high')[0] ? 'high' : lv.slice().sort((a, b) => tot(b)[0] - tot(a)[0])[0];
+      // the price leaves cache writes out: how much new text lands in the cache depends on the work, not on the effort
+      const price = (c) => c[1] - c[3];
       const coef = (e) => {
         let u = 0, o = 0, w = 0;
         for (const [k, c] of Object.entries(cells[e] || {})) {
           const h = (cells[baseK] || {})[k];
-          if (!h || c[0] < MIN || h[0] < MIN || !h[1] || !h[2]) continue;
-          u += c[0] * (c[1] / c[0]) / (h[1] / h[0]); o += c[0] * (c[2] / c[0]) / (h[2] / h[0]); w += c[0];
+          if (!h || c[0] < MIN || h[0] < MIN || !price(h) || !h[2]) continue;
+          u += c[0] * (price(c) / c[0]) / (price(h) / h[0]); o += c[0] * (c[2] / c[0]) / (h[2] / h[0]); w += c[0];
         }
         return w ? { price: u / w, out: o / w, n: w } : null;
       };
@@ -1348,7 +1352,7 @@ const DATA = /*__DATA__*/null;
         [''].concat(effModels).map((m) => `<button type="button" data-m="${m}" aria-pressed="${m === (only || '')}">${m ? modelLabel(m) : 'All models'}</button>`).join('') + '</div>';
       const which = only || (effModels.length === 1 ? effModels[0] : null);
       host.innerHTML = `<div class="eff-head"><h3 id="h-effort">Effort: the price of one call against ${baseK} on the same model${which ? ` · ${modelLabel(which)}` : ''}${eDays < A.days.length ? ` · ${eDays} of ${A.days.length} d` : ''}</h3>${tabs}</div>
-        <p class="eff-note">Priced from your own logs: Anthropic does not publish what an effort level costs. A level is set against ${baseK} on the same model version and at a similar context size. Bar = price, line = output, tick = ×1.</p>
+        <p class="eff-note">Priced from your own logs: Anthropic does not publish what an effort level costs. A level is set against ${baseK} on the same model version and at a similar context size. Price leaves cache writes out. Bar = price, line = output, tick = ×1.</p>
         <div class="eff-cards" style="--n:${lv.length}">${lv.map(card).join('')}</div>
         <div class="eff-flow"><div class="ef-l"><span>calls</span><span>spend</span></div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${flow}</svg></div>`;
       host.querySelectorAll('.eff-tabs button').forEach((btn) => btn.addEventListener('click', () => renderEffort(btn.dataset.m || null)));
@@ -1362,16 +1366,17 @@ const DATA = /*__DATA__*/null;
             : `<br>No model and context size with ${MIN}+ calls both here and at ${baseK}.`) +
           (which ? '' : `<br><span class="k">ran on</span> ${ranOn(e).map(([m, c]) => `${modelLabel(m)} ${ru(c)}`).join(', ')}`));
       });
-      bindTip($('h-effort'), `<b>Effort, priced from your own logs</b><br><span class="k">×price</span> load units of one call against a call at ${baseK}: all it costs against the limit - context read from cache, cache writes, output<br><span class="k">×output</span> tokens it writes, thinking included - what the effort level itself changes<br><span class="k">like for like</span> calls are compared only within one model version and one context size (under 50k, 50-100k, 100-150k, over 150k), weighed by the level's calls: neither a pricier model nor a longer context passes for effort<br><span class="k">the bands</span> each level's share of the calls (top) flowing into its share of the spend (bottom)` +
+      bindTip($('h-effort'), `<b>Effort, priced from your own logs</b><br><span class="k">×price</span> load units of one call against a call at ${baseK}: what it costs against the limit for reading the context from cache and for output; cache writes are left out, since how much new text lands in the cache depends on the work, not on the effort<br><span class="k">×output</span> tokens it writes, thinking included - what the effort level itself changes<br><span class="k">like for like</span> calls are compared only within one model version and one context size (under 50k, 50-100k, 100-150k, over 150k), weighed by the level's calls: neither a pricier model nor a longer context passes for effort<br><span class="k">the bands</span> each level's share of the calls (top) flowing into its share of the spend (bottom)` +
         (unmarked ? `<br>${ru(unmarked)} calls with no effort mark are left out.` : '') + (eDays < A.days.length ? `<br>Counted over ${eDays} of ${A.days.length} days: older logs did not keep this split.` : ''));
     }
     const left = document.createElement('div');
     left.innerHTML =
-      mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['over 150k', I.ctx.gt150, I.units]], 'var(--r2)') +
+      mini('Spend by context size', [['under 50k', I.ctx.lt50, I.units], ['50–100k', I.ctx['50_100'], I.units], ['100–150k', I.ctx['100_150'], I.units], ['150–250k', I.ctx['150_250'], I.units], ['250–400k', I.ctx['250_400'], I.units], ['over 400k', I.ctx.gt400, I.units], ['over 150k, older days', I.ctx.gt150, I.units]], 'var(--r2)') +
       mini('Spend by model', Object.entries(modelUnits).filter(([, u]) => u > 0).sort((a, b) => b[1] - a[1]).map(([m, u]) => [modelLabel(m), u, modelTotal]), 'var(--s1)') +
       (skillTop.some(([, u]) => pct(u, I.units) >= 0.5) ? mini('Skill text in context', skillTop.filter(([, u]) => pct(u, I.units) >= 0.5).map(([k, u]) => [k, u, I.units]), 'var(--s2)') : '');   // rows that round to 0 % are noise
     const tips = [];
-    const gt = pct(I.ctx.gt150, I.units), gt100 = pct(I.ctx['100_150'] + I.ctx.gt150, I.units);
+    const over150 = I.ctx.gt150 + I.ctx['150_250'] + I.ctx['250_400'] + I.ctx.gt400;   // gt150: days logged before the split
+    const gt = pct(over150, I.units), gt100 = pct(I.ctx['100_150'] + over150, I.units);
     if (gt >= 50) tips.push(['warn', `${ru(gt, 0)} % of the spend goes to calls with a context over 150k`, 'A long context is expensive even from cache: every call re-reads all of it. <b>/compact</b> in the middle of a long task, <b>/clear</b> when the subject changes; send big dumps and logs to a file, not into the chat.']);
     else if (gt100 >= 50) tips.push(['warn', `${ru(gt100, 0)} % of the spend runs on a context over 100k`, 'Not critical yet, but climbing: <b>/compact</b> after large reads, and move work on a different subject into a new session.']);
     else tips.push(['ok', `Context is healthy: ${ru(gt, 0)} % of the spend is above 150k`, 'Keep splitting work across sessions.']);

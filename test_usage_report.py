@@ -70,7 +70,7 @@ def test_skill_attribution_and_context_buckets():
                       [user("2026-09-01T12:00:00Z"), skill_call, skill_body, asst("2026-09-01T12:00:30Z", "r2"), asst("2026-09-01T12:00:40Z", "r3")])
         days = ur.scan(CFG, root)
     ins = days["2026-09-01"]["acme-api"]["ins"]
-    assert ins["ctx"]["gt150"] > 0 and ins["ctx"]["lt50"] > 0, "calls are bucketed by context size"
+    assert ins["ctx"]["150_250"] > 0 and ins["ctx"]["lt50"] > 0, "calls are bucketed by context size"
     # two calls after the skill loaded x 10k tokens x 0.5/1M
     assert abs(ins["skills"]["demo"] - 2 * 10_000 * 0.5 / 1e6) < 1e-9, ins["skills"]
     assert ins["sessions"] == 1 and ins["sessions_short"] == 0
@@ -86,10 +86,11 @@ def test_effort_splits_spend():
         days = ur.scan(CFG, root)
     ins = days["2026-09-01"]["acme-api"]["ins"]
     assert dict(ins["effort"]) == {"high": 1, "max": 1}
-    cells = ins["effort_cells"]                    # effort -> model -> context bucket -> [calls, units, output]
+    cells = ins["effort_cells"]                    # effort -> model -> context bucket -> [calls, units, output, cache write units]
     hi_c, mx_c = cells["high"]["claude-opus-5"]["lt50"], cells["max"]["claude-opus-5"]["lt50"]   # 1 011 tokens of context
     assert hi_c[0] == 1 and mx_c[0] == 1 and hi_c[2] == 100 and mx_c[2] == 900, cells
     assert abs(hi_c[1] + mx_c[1] - ins["units"]) < 1e-9 and mx_c[1] > hi_c[1], cells
+    assert abs(hi_c[3] - 10 * ur.weights_for("claude-opus-5", CFG)["cache_create"] / 1e6) < 1e-12, "cache writes kept apart for the price"
     hist = ur.merge({"days": {}}, days)
     assert hist["days"]["2026-09-01"]["acme-api"]["ins"]["effort_cells"]["max"]["claude-opus-5"]["lt50"][2] == 900
 

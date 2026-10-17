@@ -172,7 +172,7 @@ def group_of(name, cfg):
 
 def new_ins():
     """Where the spend goes, in load units: context size, effort, subagents, skills, cold starts."""
-    return {"units": 0.0, "ctx": {"lt50": 0.0, "50_100": 0.0, "100_150": 0.0, "gt150": 0.0},
+    return {"units": 0.0, "ctx": {"lt50": 0.0, "50_100": 0.0, "100_150": 0.0, "150_250": 0.0, "250_400": 0.0, "gt400": 0.0},
             "effort": defaultdict(int), "effort_cells": {}, "side_units": 0.0, "cache_create_units": 0.0,
             "skills": defaultdict(float), "sessions": 0, "sessions_short": 0, "first_call_units": 0.0}
 
@@ -344,15 +344,17 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None, since=None, report=None)
                         ins["units"] += units
                         ctx = tok["input"] + tok["cache_read"] + tok["cache_create"]
                         cb = "lt50" if ctx < 50e3 else "50_100" if ctx < 100e3 else "100_150" if ctx < 150e3 else "gt150"
-                        ins["ctx"][cb] += units
+                        ins["ctx"][cb if ctx < 150e3 else "150_250" if ctx < 250e3 else "250_400" if ctx < 400e3 else "gt400"] += units
                         ins["effort"][r.get("effort") or "?"] += 1
-                        # effort stuck to the exact model and the context size: [calls, units, output] per cell, so the page
-                        # compares a level only with high on the same model version and at a similar context
-                        cell = ins["effort_cells"].setdefault(r.get("effort") or "?", {}).setdefault(model, {}).setdefault(cb, [0, 0.0, 0])
+                        # effort stuck to the exact model and the context size: [calls, units, output, cache write units] per
+                        # cell, so the page compares a level only with high on the same model version and at a similar context
+                        cw = tok["cache_create"] * w["cache_create"] / 1e6
+                        cell = ins["effort_cells"].setdefault(r.get("effort") or "?", {}).setdefault(model, {}).setdefault(cb, [0, 0.0, 0, 0.0])
                         cell[0] += 1
                         cell[1] += units
                         cell[2] += tok["output"]
-                        ins["cache_create_units"] += tok["cache_create"] * w["cache_create"] / 1e6
+                        cell[3] += cw
+                        ins["cache_create_units"] += cw
                         if r.get("isSidechain"):
                             ins["side_units"] += units
                         for skill, size in loaded.items():  # every call re-reads the skill text from cache
@@ -403,7 +405,7 @@ def merge(history, fresh, presence=None):
                 ins[k] = round(ins[k], 3)
             ins["ctx"] = {k: round(x, 3) for k, x in ins["ctx"].items()}
             ins["skills"] = {k: round(x, 3) for k, x in ins["skills"].items() if x >= 0.001}
-            ins["effort_cells"] = {e: {m: {b: [c[0], round(c[1], 4), c[2]] for b, c in bs.items()} for m, bs in ms.items()}
+            ins["effort_cells"] = {e: {m: {b: [c[0], round(c[1], 4), c[2], round(c[3], 4)] for b, c in bs.items()} for m, bs in ms.items()}
                                    for e, ms in ins["effort_cells"].items()}
             snap = {"sec": int(v["sec"]), "hours": [int(h) for h in v["hours"]], "msgs": v["msgs"],
                     "mine": v["mine"], "nudges": v["nudges"], "prompts": dict(v["prompts"]),

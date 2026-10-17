@@ -101,9 +101,9 @@ def make_ins(rnd, cfg, models):
     ins["units"] = round(units, 3)
     shares = [rnd.uniform(*r) for r in ((0.02, 0.08), (0.08, 0.16), (0.14, 0.24), (0.55, 0.72))]
     s = sum(shares)
-    for key, part in zip(("lt50", "50_100", "100_150", "gt150"), shares):
+    for key, part in zip(("lt50", "50_100", "100_150", "150_250", "250_400", "gt400"), shares[:3] + [shares[3] * f for f in (0.5, 0.3, 0.2)]):
         ins["ctx"][key] = round(units * part / s, 3)
-    # effort by exact model and context bucket, [calls, units, output]: share of the calls, then what one call
+    # effort by exact model and context bucket, [calls, units, output, cache write units]: share of the calls, then what one call
     # costs and writes against a call at high on the same model; max only on the big models
     levels = (("xhigh", 0.24, 1.12, 1.37), ("high", 0.50, 1.0, 1.0), ("medium", 0.12, 0.87, 0.70), ("low", 0.04, 0.38, 0.26), ("max", 0.10, 1.57, 2.08))
     for name, m in models.items():
@@ -117,8 +117,9 @@ def make_ins(rnd, cfg, models):
                 if not c:
                     continue
                 ins["effort"][effort] += c
+                u = mu * part * pw * jit[effort] / price * bpart / s
                 ins["effort_cells"].setdefault(effort, {}).setdefault(name, {})[key] = [
-                    c, round(mu * part * pw * jit[effort] / price * bpart / s, 4), int(m["output"] * part * ow * jit[effort] / write * bpart / s)]
+                    c, round(u, 4), int(m["output"] * part * ow * jit[effort] / write * bpart / s), round(u * 0.15, 4)]
     ins["side_units"] = round(units * rnd.uniform(0.02, 0.09), 3)
     ins["cache_create_units"] = round(units * rnd.uniform(0.08, 0.18), 3)
     for skill in rnd.sample(SKILLS, rnd.randint(1, 3)):
