@@ -34,10 +34,10 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
          "hours": [0, 0, …, 1800, …],    // the same seconds by hour of day, 0-23
          "msgs": 42,                     // user messages (tool results excluded)
          "sessions": ["b622af0b-…", …],  // ids of sessions alive that day
-         "mine": 30,                     // of msgs, the ones you typed (not subagent prompts, `claude -p` runs, interruptions or command tags)
+         "mine": 30,                     // of msgs, the ones you typed (not subagent prompts, `claude -p` runs, compaction summaries, interruptions or command tags)
          "nudges": 6,                    // of those, short pokes: up to 15 characters, not a slash command ("continue", "ok")
-         "prompts": {"normalized start of a request": 4},   // requests of 20+ characters, not slash commands: lower-cased, spaces
-                                         // collapsed, cut at 80 characters -> how often it came up that day. In
+         "prompts": {"normalized start of a request": 4},   // requests of 20+ characters, not slash commands: lower-cased, paths and links
+                                         // dropped, spaces collapsed, cut at 80 characters (then "…") -> how often it came up that day. In
                                          // dashboard.artifact.html and dashboard.design.html the keys are "#" + 8 hex of the
                                          // text's sha1 instead of the text: the counts travel, your words do not
          "ins": {                        // where the spend goes, in load units (tokens x weights)

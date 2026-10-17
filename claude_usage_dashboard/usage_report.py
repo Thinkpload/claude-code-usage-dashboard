@@ -203,8 +203,9 @@ def prompt_text(content):
 
 
 def is_yours(r, text):
-    """A message you typed: not a subagent's prompt, not a claude -p run, not an interruption or a command tag."""
-    return bool(text) and not r.get("isSidechain") and r.get("entrypoint") != "sdk-cli" \
+    """A message you typed: not a subagent's prompt, not a claude -p run, not a compaction summary, not an
+    interruption or a command tag."""
+    return bool(text) and not r.get("isSidechain") and r.get("entrypoint") != "sdk-cli" and not r.get("isCompactSummary") \
         and not text.startswith(("<", "[Request interrupted by user"))
 
 
@@ -317,8 +318,10 @@ def scan(cfg, projects_dir=PROJECTS_DIR, presence=None, since=None, report=None)
                                 pdv["mine"] += 1
                                 if not t.startswith("/") and len(t) <= 15:
                                     pdv["nudges"] += 1
-                                elif not t.startswith("/") and len(t) >= 20:
-                                    pdv["prompts"][re.sub(r"\s+", " ", t.lower())[:80]] += 1
+                                elif not t.startswith("/"):  # a path or a link is what the request is about, not the request
+                                    k = re.sub(r"\s+", " ", re.sub(r"\S*[\\/]\S*", " ", t.lower())).strip()
+                                    if len(k) >= 20:
+                                        pdv["prompts"][k[:80] + "…" * (len(k) > 80)] += 1
                     elif typ == "assistant":
                         m = r.get("message", {})
                         for b in m.get("content") or []:

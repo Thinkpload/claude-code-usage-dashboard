@@ -401,6 +401,25 @@ def test_messages_typed_in_vs_code_are_yours():
     assert v["prompts"] == {"fix the login bug please": 1, "a long stack trace here what does this mean": 1}, v["prompts"]
 
 
+def test_a_compact_summary_and_a_pasted_path_are_not_a_repeated_request():
+    """The summary Claude Code writes after a compaction is not yours; a path in front of a request is what it is
+    about, so two different requests about one folder are two keys, and a cut key says so."""
+    long_path = "C:\\Users\\ann\\code\\acme-api\\docs\\specs\\2026-09-01-billing-and-invoices\\notes.md"
+    with tempfile.TemporaryDirectory() as root:
+        write_session(root, SLUG, "s1", [
+            say("2026-09-01T09:00:00Z", "This session is being continued from a previous conversation that ran out of context.",
+                isCompactSummary=True, isVisibleInTranscriptOnly=True),
+            say("2026-09-01T09:01:00Z", f"{long_path} summarise the open questions"),
+            say("2026-09-01T09:02:00Z", f"{long_path} turn this into tasks"),
+            say("2026-09-01T09:03:00Z", "see https://example.com/x " + "word " * 30),
+        ])
+        days = ur.scan(CFG, root)
+    v = days["2026-09-01"]["acme-api"]
+    assert v["mine"] == 3, v["mine"]
+    assert v["prompts"] == {"summarise the open questions": 1, "turn this into tasks": 1,
+                            "see " + ("word " * 16)[:76] + "…": 1}, v["prompts"]
+
+
 def test_waiting_for_claude_is_your_time_but_not_overnight_runs():
     """A break is quiet after Claude's last move, not after your last message: 40 minutes of watching a run and
     answering 5 minutes after it ends is one stretch. A gap over an hour is never counted, however busy Claude was."""

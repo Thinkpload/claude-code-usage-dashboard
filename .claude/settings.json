@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Granola__get_meetings",
+      "mcp__claude_ai_Granola__get_meeting_transcript",
+      "mcp__claude_ai_Tavily__tavily_extract"
+    ]
+  }
+}
