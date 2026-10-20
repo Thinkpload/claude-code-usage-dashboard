@@ -104,6 +104,25 @@ def test_groups_and_names():
     assert ur.group_of("stargazing-app", CFG) == "personal"
 
 
+def test_aliases_fold_worktrees_into_their_project():
+    """A worktree logs under a folder of its own; an alias adds its days into the main project on the dashboard,
+    while history keeps them apart, so changing the alias later redraws the past too."""
+    cfg = dict(CFG, aliases={"acme-api--worktrees-*": "acme-api"})
+    def snap(sec, sid, calls):
+        ins = dict(ur.new_ins(), units=calls, sessions=1, effort={"high": calls})
+        return {"sec": sec, "hours": [sec] + [0] * 23, "msgs": 1, "sessions": [sid], "prompts": {"ship it": 1}, "ins": ins,
+                "models": {"claude-opus-5": {"calls": calls, "input": 0, "cache_create": 0, "cache_read": 0, "output": 0, "thinking": 0}}}
+    hist = {"days": {"2026-09-01": {"acme-api": snap(100, "a", 5), "acme-api--worktrees-z1": snap(40, "b", 2)},
+                     "2026-09-02": {"acme-api--worktrees-z2": snap(30, "c", 1), "stargazing-app": snap(10, "d", 1)}}}
+    data = ur.build_data(hist, cfg, datetime(2026, 9, 3, 12, tzinfo=ur.tz(cfg)))
+    assert data["projects"] == {"acme-api": "core", "stargazing-app": "personal"}
+    p = data["days"][0]["p"]["acme-api"]
+    assert (p["sec"], p["hours"][0], p["sessions"], p["prompts"]) == (140, 140, ["a", "b"], {"ship it": 2})
+    assert (p["models"]["claude-opus-5"]["calls"], p["ins"]["units"], p["ins"]["sessions"], p["ins"]["effort"]) == (7, 7, 2, {"high": 7})
+    assert set(data["days"][1]["p"]) == {"acme-api", "stargazing-app"}, "a worktree alone on a day is renamed"
+    assert set(hist["days"]["2026-09-01"]) == {"acme-api", "acme-api--worktrees-z1"}, "history is not rewritten"
+
+
 def test_home_slug_matches_claude_code_encoding():
     """The default strip_prefixes must peel the home path off a real log folder name."""
     cfg = dict(CFG)

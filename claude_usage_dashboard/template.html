@@ -254,6 +254,7 @@ th{font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--muted);fo
 td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 td .bar{height:6px;border-radius:999px;background:var(--surface-2);position:relative;min-width:120px}
 td .bar i{position:absolute;inset:0 auto 0 0;border-radius:999px}
+td .name{display:block;max-width:360px;overflow:hidden;text-overflow:ellipsis}
 tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:color-mix(in srgb,var(--surface-2) 60%,transparent)}
 
@@ -1508,7 +1509,7 @@ const DATA = /*__DATA__*/null;
     }
     const repeats = Object.entries(rep).filter(([, R]) => R.n >= 3 && R.days.size >= 2).sort((a, b) => b[1].n - a[1].n);
     if (repeats.length) tips.push(['warn', `Requests you keep typing by hand: ${ru(repeats.length)}`,
-      repeats.slice(0, 5).map(([k, R]) => `<span class="mono">${/^#[0-9a-f]{8}$/.test(k) ? `${k} (text hidden in the published copy)` : esc(k)}</span> · ${ru(R.n)}× · days with it: ${R.days.size} · ${[...R.projects].map(esc).join(', ')}`).join('<br>') +
+      repeats.slice(0, 5).map(([k, R]) => `<span class="mono">${/^#[0-9a-f]{8}$/.test(k) ? `${k} (text hidden in the published copy)` : esc(k)}</span> · ${ru(R.n)}× · days with it: ${R.days.size} · ${[...R.projects].slice(0, 3).map(esc).join(', ')}${R.projects.size > 3 ? ` +${R.projects.size - 3}` : ''}`).join('<br>') +
       '<br>Turn a request you repeat into a skill or a slash command: one word instead of a paragraph, and the same result every time.']);
     if (mine >= 20 && pct(nudges, mine) >= 10) tips.push(['warn', `${P(nudges, mine)} of your messages are short nudges (${ru(nudges)} / ${ru(mine)})`,
       '“yes”, “go”, “continue”: Claude stops and waits for you. Hand it the whole task with a plan up front, switch on auto mode, allow the commands it keeps asking about (<b>/fewer-permission-prompts</b>), and use <b>/loop</b> for checks you repeat.']);
@@ -1526,7 +1527,7 @@ const DATA = /*__DATA__*/null;
     const rows = Object.entries(A.byProject).sort((a, b) => (b[1].sec - a[1].sec) || ((b[1].commits || 0) - (a[1].commits || 0)));
     const maxSec = rows.length ? Math.max(1, rows[0][1].sec) : 1;
     $('t-projects').innerHTML = `<thead><tr><th>Project</th><th>Group</th><th class="num">Hours</th><th>Share</th><th class="num">Calls</th><th class="num">Output</th><th class="num">Sessions</th><th class="num">Commits</th></tr></thead><tbody>` +
-      rows.map(([name, p]) => { const gi = groupIndex[p.group] ?? 3; return `<tr><td>${name}</td><td><span class="chip"><i class="sw" style="background:${GROUP_COLORS[gi]}"></i>${groupLabel[p.group] || p.group}</span></td><td class="num">${p.sec ? ru(p.sec / 3600, 1) : '—'}</td><td><div class="bar" title="${ru(A.sec ? 100 * p.sec / A.sec : 0, 0)} %"><i style="width:${100 * p.sec / maxSec}%;background:${GROUP_COLORS[gi]}"></i></div></td><td class="num">${p.calls ? ru(p.calls) : '—'}</td><td class="num">${p.output ? fmtTok(p.output) : '—'}</td><td class="num">${p.sessions.size || '—'}</td><td class="num">${p.commits ? ru(p.commits) : '—'}</td></tr>`; }).join('') + '</tbody>';
+      rows.map(([name, p]) => { const gi = groupIndex[p.group] ?? 3; return `<tr><td><span class="name" title="${esc(name)}">${esc(name)}</span></td><td><span class="chip"><i class="sw" style="background:${GROUP_COLORS[gi]}"></i>${groupLabel[p.group] || p.group}</span></td><td class="num">${p.sec ? ru(p.sec / 3600, 1) : '—'}</td><td><div class="bar" title="${ru(A.sec ? 100 * p.sec / A.sec : 0, 0)} %"><i style="width:${100 * p.sec / maxSec}%;background:${GROUP_COLORS[gi]}"></i></div></td><td class="num">${p.calls ? ru(p.calls) : '—'}</td><td class="num">${p.output ? fmtTok(p.output) : '—'}</td><td class="num">${p.sessions.size || '—'}</td><td class="num">${p.commits ? ru(p.commits) : '—'}</td></tr>`; }).join('') + '</tbody>';
     $('proj-note').textContent = `${rows.length} projects · ${fmtH(A.sec)} · ${ru(A.commits)} git commits`;
   }
 

@@ -70,6 +70,8 @@ DEFAULT_CONFIG = {
     # Dashboard language: "en" is the template itself, anything else needs i18n/<lang>.json.
     "lang": "en",
     "strip_prefixes": [home_slug() + "-", home_slug()],
+    # Projects shown under another project's name, by pattern: {"acme-api--worktrees-*": "acme-api"} folds worktrees into their repo.
+    "aliases": {},
     "groups": [
         {"id": "core", "label": "Main work", "match": []},
         {"id": "work", "label": "Work misc", "match": []},
@@ -168,6 +170,24 @@ def group_of(name, cfg):
         if any(fnmatch.fnmatch(name.lower(), m.lower()) for m in g["match"]):
             return g["id"]
     return cfg["groups"][-1]["id"]
+
+
+def add_snap(a, b):
+    """Two snapshots of a day added up: numbers and hour lists add, session lists join."""
+    if isinstance(a, dict):
+        return {k: add_snap(a[k], b[k]) if k in a and k in b else a.get(k, b.get(k)) for k in a | b}
+    if isinstance(a, list):
+        return sorted(set(a + b)) if any(isinstance(x, str) for x in a + b) else [x + y for x, y in zip(a, b)]
+    return a + b
+
+
+def fold_aliases(projects, cfg):
+    """A day's projects with each one an alias matches added into the project the alias names."""
+    out = {}
+    for name, v in projects.items():
+        name = next((to for pat, to in cfg["aliases"].items() if fnmatch.fnmatch(name.lower(), pat.lower())), name)
+        out[name] = add_snap(out[name], v) if name in out else v
+    return out
 
 
 def new_ins():
@@ -749,7 +769,7 @@ def build_data(history, cfg, now):
     today = now.date()
     weeks, budgets = build_weeks(history, cfg, now)
     plan_now = plan_on(today.strftime("%Y-%m-%d"), cfg)
-    days = [{"d": d, "p": history["days"][d]} for d in sorted(history["days"])]
+    days = [{"d": d, "p": fold_aliases(history["days"][d], cfg)} for d in sorted(history["days"])]
     names = sorted({n for d in days for n in d["p"]})
     months = sorted({d["d"][:7] for d in days}, reverse=True)
     commits, repo_count = git_commits(cfg, days[0]["d"] if days else today.strftime("%Y-%m-%d"), names)
