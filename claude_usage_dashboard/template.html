@@ -153,6 +153,8 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .track i.alt{background:var(--accent-2)}
 .track i.full{background:var(--bad)}
 .track i.credit{background:var(--ok)}
+.track:has(.due-n){margin-top:16px}
+.track .due-n{position:absolute;bottom:calc(100% + 7px);font-family:var(--mono);font-size:12px;line-height:1;color:var(--ink);white-space:nowrap}
 .track .due{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);
             box-shadow:0 0 0 1.5px var(--surface)}
 .track .h5{position:absolute;top:3px;bottom:3px;width:1.5px;margin-left:-.75px;background:var(--ink-2);opacity:.7}
@@ -807,7 +809,7 @@ const DATA = /*__DATA__*/null;
          </div>
          <div class="track${thin ? ' thin' : ''}">
            <i class="${thin ? 'alt' : ''}${(pct ?? 0) >= 100 ? ' full' : ''}" style="width:${Math.min(100, pct ?? 0)}%"></i>
-           <b class="due" style="left:${due}%"></b>${marks}
+           <b class="due" style="left:${due}%"></b>${thin ? '' : `<small class="due-n" id="${id}-due" style="left:${due}%;transform:translateX(-${due}%)">${ru(plan * 100, 0)} %</small>`}${marks}
          </div>
        </div>`;
 
@@ -869,6 +871,7 @@ const DATA = /*__DATA__*/null;
     if (ccOn) bindTip($('rail-credit'), `<b>Cloud session credit</b><br>$${ru(cc.used, 2)} of $${ru(cc.limit, 0)} spent · $${ru(ccLeft, 2)} left${ccEnd ? `<br><span class="k">burns out</span> ${fmtDate(cc.expires.slice(0, 10))}, ${hhmm(ccEnd)} · in ${dur(ccEnd - now)}<br><span class="k">to use it up</span> ~$${ru(ccLeft / Math.max(1, (ccEnd - now) / 864e5), 0)} a day` : ''}<br><span class="k">as of</span> ${cc.at}<br>Pays for cloud sessions first: Claude Code on the web and in the mobile app, cloud sessions started from the terminal, routines (/schedule). Once it is spent or burns out, cloud sessions draw on the plan limit again.`);
     if (bmOn) bindTip($('rail-month'), `<b>Paid month ${fmtSpan(bm)}</b><br>${ru(bm.budget_units, 0)} of ${ru(bm.budget, 0)} units - ${ru(bm.pct, 0)} %<br><span class="k">month gone by</span> ${ru(100 * bmDue, 0)} %<br><span class="k">left</span> ${dur(Math.max(0, bmEnd - now))} · up to ${ru(Math.max(0, bm.budget - bm.budget_units), 0)} units<br>The most the limit allows in the month: each week’s budget for its days in it, the days still ahead at this week’s budget.` +
       mWeeks.map((x) => `<br><span class="k">${fmtSpan(x.w)}</span> ${x.w.pct == null ? '—' : ru(x.w.pct, 0) + ' %'}${x.w.partial ? ' so far' : ''}${x.share < 0.995 ? ` · ${ru(x.share * 7, 1)} d in the month` : ''}`).join(''));
+    bindTip($('rail-all-due'), '<b>due now</b>');
     if (cur.fable_pct != null) bindTip($('rail-fable'), `<b>Fable</b><br>${ru(cur.fable_units, 0)} of ${ru(cur.fable_budget, 0)} units - ${ru(cur.fable_pct, 0)} %<br><span class="k">due now</span> ${ru(plan * 100, 0)} %`);
   }
 
