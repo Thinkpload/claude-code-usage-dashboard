@@ -497,6 +497,11 @@ footer.method b{color:var(--ink-2)}
       <div class="chart" id="c-daily"></div>
     </div>
 
+    <div class="card" id="k-spend" data-span="12">
+      <header><h2>Spend by day</h2><div class="legend" id="legend-spend"></div></header>
+      <div class="chart" id="c-spend"></div>
+    </div>
+
     <div class="card" id="k-weekly" data-span="6">
       <header><h2>Limit weeks</h2><span class="badge" id="limit-badge"></span></header>
       <div class="chart" id="c-weekly"></div>
@@ -562,6 +567,8 @@ const DATA = /*__DATA__*/null;
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const parseAt = (s) => new Date(String(s).replace(' ', 'T'));
   const fmtHM = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
+  const WEIGHTS = DATA.token_weights, weightKeys = Object.keys(WEIGHTS).filter((k) => k !== 'default').sort((a, b) => b.length - a.length);
+  const weightsFor = (m) => WEIGHTS[weightKeys.find((k) => m.startsWith(k)) || 'default'];   // longest prefix first, as in the script
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // ---------- periods ----------
@@ -581,7 +588,7 @@ const DATA = /*__DATA__*/null;
     for (const day of days) {
       const dg = DATA.groups.map(() => 0);
       const dow = (new Date(day.d + 'T00:00:00').getDay() + 6) % 7;
-      let dcalls = 0;
+      let dcalls = 0; const du = [0, 0, 0, 0], dt = [0, 0, 0, 0];   // load units and tokens: cache reads, cache writes + input, answer, thinking
       for (const [name, v] of Object.entries(day.p)) {
         const gi = groupIndex[DATA.projects[name]] ?? DATA.groups.length - 1;
         const P = A.byProject[name] || (A.byProject[name] = { sec: 0, msgs: 0, calls: 0, output: 0, sessions: new Set(), group: DATA.projects[name] });
@@ -593,9 +600,13 @@ const DATA = /*__DATA__*/null;
           M.calls += x.calls; M.output += x.output; M.cache_read += x.cache_read;
           P.calls += x.calls; P.output += x.output; A.calls += x.calls; dcalls += x.calls;
           for (const k of Object.keys(A.tok)) A.tok[k] += x[k] || 0;
+          const w = weightsFor(m), th = x.thinking || 0;
+          dt[0] += x.cache_read; dt[1] += x.cache_create + x.input; dt[2] += x.output - th; dt[3] += th;
+          du[0] += x.cache_read * w.cache_read / 1e6; du[1] += (x.cache_create * w.cache_create + x.input * w.input) / 1e6;
+          du[2] += (x.output - th) * w.output / 1e6; du[3] += th * w.output / 1e6;
         }
       }
-      A.daily.push({ d: day.d, groups: dg, total: dg.reduce((a, b) => a + b, 0), calls: dcalls });
+      A.daily.push({ d: day.d, groups: dg, total: dg.reduce((a, b) => a + b, 0), calls: dcalls, units: du, tok: dt });
       run += dg.reduce((a, b) => a + b, 0);
       A.cum.push({ d: day.d, sec: run });
     }
@@ -1109,6 +1120,38 @@ const DATA = /*__DATA__*/null;
       if (d === maxDay) text(s, x + bw / 2, top - 5, fmtH(d.total), { 'text-anchor': 'middle', class: 'lbl' });
     });
     $('legend-groups').innerHTML = DATA.groups.map((g, i) => `<span><i class="sw" style="background:${GROUP_COLORS[i]}"></i>${g.label}</span>`).join('');
+  }
+
+  // ---------- spend by day: load units stacked by token type ----------
+  function spend(A) {
+    const c = $('c-spend'); const W = width(c), H = 380, L = 44, Rr = 12, T = 22, B = 28;
+    const s = svg(c, W, H);
+    const parts = ['Cache reads', 'Cache writes and input', 'Answer', 'Thinking'];
+    const days = A.daily; if (!days.length) return;
+    const tot = (d) => d.units.reduce((a, b) => a + b, 0);
+    const sum = days.reduce((a, d) => a + tot(d), 0), avg = sum / days.length;
+    const peak = Math.max(...days.map(tot)), step = niceMax(peak) / 10, max = Math.ceil(peak / step) * step || 1;   // a tenth of the nice step: no half-empty card
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    for (let i = 0; i <= 4; i++) { const v = max * i / 4; el('line', { x1: L, x2: W - Rr, y1: y(v), y2: y(v), class: i ? 'grid' : 'axis' }, s); text(s, L - 6, y(v) + 4, ru(v, max < 5 ? 1 : 0), { 'text-anchor': 'end', class: 'tick' }); }
+    const slot = (W - L - Rr) / days.length, bw = Math.min(32, Math.max(3, slot - 2));
+    const maxDay = days.reduce((m, d) => tot(d) > tot(m) ? d : m, days[0]);
+    const every = Math.ceil(days.length / Math.floor((W - L - Rr) / 44));
+    days.forEach((d, i) => {
+      const x = L + slot * i + (slot - bw) / 2, t = tot(d); let top = y(0);
+      const g = el('g', {}, s);
+      d.units.forEach((u, k) => {
+        if (!u) return; const h = y(0) - y(u); const gap = top < y(0) ? 2 : 0;
+        column(g, x, top - h, bw, h - gap, RAMP[k], k === lastNonZero(d.units) ? 4 : 0); top -= h;
+      });
+      const html = `<b>${fmtDate(d.d)}</b> · ${ru(t, 1)} units · ${ru(d.calls)} calls<br>` +
+        parts.map((p, k) => `<span class="k">${p}</span> ${ru(d.units[k], 1)} · ${ru(t ? 100 * d.units[k] / t : 0, 0)} % · ${fmtTok(d.tok[k])} tok`).join('<br>');
+      const hit = el('rect', { x: L + slot * i, y: T, width: slot, height: H - T - B, fill: 'transparent' }, s); bindTip(hit, html);
+      if (i % every === 0) text(s, x + bw / 2, H - 8, fmtDate(d.d), { 'text-anchor': 'middle', class: 'tick' });
+      if (d === maxDay) text(s, x + bw / 2, top - 6, ru(t, t < 10 ? 1 : 0), { 'text-anchor': 'middle', class: 'lbl' });
+    });
+    el('line', { x1: L, x2: W - Rr, y1: y(avg), y2: y(avg), class: 'ref' }, s);
+    $('legend-spend').innerHTML = parts.map((p, k) => `<span><i class="sw" style="background:${RAMP[k]}"></i>${p}</span>`).join('') +
+      `<span class="muted">load units: ${ru(sum, 0)} in the period, ${ru(avg, avg < 10 ? 1 : 0)} a day on average (dashed)</span>`;
   }
   function lastNonZero(arr) { for (let i = arr.length - 1; i >= 0; i--) if (arr[i]) return i; return -1; }
 
@@ -1640,7 +1683,7 @@ const DATA = /*__DATA__*/null;
 
   function render() {
     const A = aggregate(current);
-    header(A); weekInstrument(); stats(A); rest(); portrait(A); daily(A); weekly(A); cumulative(A);
+    header(A); weekInstrument(); stats(A); rest(); portrait(A); daily(A); spend(A); weekly(A); cumulative(A);
     gitDaily(A); months(); models(A); tokens(A); insights(A); projects(A); method();
   }
   initTheme();

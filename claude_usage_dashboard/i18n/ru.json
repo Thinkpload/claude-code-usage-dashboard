@@ -508,5 +508,13 @@
  "// the week below it: shares only, written inside, the even split marked": "// неделя под ней: только доли, вписаны внутрь, ровная половина отмечена",
  "// two bars on that scale, you over Claude, one norm tick through both; past it each is hatched, yours in red": "// две полосы на этой шкале, ты над Claude, одна отметка нормы через обе; за ней обе штрихуются, твоя — красным",
  "// who is ahead, not a fraction": "// кто впереди, а не дробь",
- "</u> h this week</span>": "</u> ч за неделю</span>"
+ "</u> h this week</span>": "</u> ч за неделю</span>",
+ ">Spend by day<": ">Расход по дням<",
+ "   // longest prefix first, as in the script": "   // самый длинный префикс первым, как в скрипте",
+ "   // load units and tokens: cache reads, cache writes + input, answer, thinking": "   // единицы нагрузки и токены: чтение кэша, запись кэша + ввод, ответ, размышления",
+ "\n  // ---------- spend by day: load units stacked by token type ----------\n": "\n  // ---------- расход по дням: единицы нагрузки стопкой по типам токенов ----------\n",
+ "} units · ${ru(d.calls)}": "} ед. · ${ru(d.calls)}",
+ "} tok`": "} ток.`",
+ "   // a tenth of the nice step: no half-empty card": "   // десятая доля круглого шага: карточка не пустует наполовину",
+ "\">load units: ${ru(sum, 0)} in the period, ${ru(avg, avg < 10 ? 1 : 0)} a day on average (dashed)</span>": "\">единицы нагрузки: ${ru(sum, 0)} за период, в среднем ${ru(avg, avg < 10 ? 1 : 0)} в день (пунктир)</span>"
 }
