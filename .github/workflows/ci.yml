@@ -12,6 +12,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
         python: ["3.9", "3.12"]
+        # ubuntu-latest is 26.04 now and actions/python-versions ships no 3.9 for it;
+        # the oldest supported Python is still checked on Linux, one image back.
+        exclude:
+          - os: ubuntu-latest
+            python: "3.9"
+        include:
+          - os: ubuntu-24.04
+            python: "3.9"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +39,8 @@ jobs:
         run: python demo/make_demo.py --lang ru --strict --out demo/index.ru.html
 
   package:
-    runs-on: ubuntu-latest
+    # Built on the oldest supported Python, which ubuntu-latest (26.04) no longer has.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
