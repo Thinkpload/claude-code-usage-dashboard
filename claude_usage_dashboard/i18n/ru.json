@@ -198,6 +198,7 @@
  ">active hours<": ">активные часы<",
  ">load units<": ">единицы нагрузки<",
  ">limit<": ">лимит<",
+ "    // only the \"due now\" marks run on the clock: the bars, the pace and the verdict stay at the build, the moment their numbers are from": "    // по часам идут только отметки «положено сейчас»: полосы, темп и вывод остаются на момент сборки, к нему относятся их числа",
  ">paid months, every one on record<": ">оплаченные месяцы, вся история<",
  "\n    // the paid month against the most the limit allows in it; its \"due now\" mark is the share of the month gone by\n": "\n    // оплаченный месяц против максимума, который даёт за него лимит; отметка «где положено быть» — доля прошедшего месяца\n",
  ">Paid month $": ">Оплаченный месяц $",
