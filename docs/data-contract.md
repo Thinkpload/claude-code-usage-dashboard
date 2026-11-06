@@ -97,6 +97,7 @@ template as `const DATA = …`. Times are local (`tz_offset_hours` from the sett
   },
   "idle_minutes": 10,
   "break_minutes": 15,                   // quiet after Claude's last move longer than this, before your next message, is a break (presence)
+  "holidays": ["12-25", "2026-12-24"],   // config "holidays": weekdays that get the day-off norm in "Your time": MM-DD every year, YYYY-MM-DD once
   "config_path": "~/.claude/usage-report/config.json",
   "refresh_url": "claude-usage://refresh"   // or null: not registered (--register-refresh), and always null in the artifact
 }

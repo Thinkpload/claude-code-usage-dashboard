@@ -67,6 +67,8 @@ DEFAULT_CONFIG = {
     # reminds you after remind_after_minutes without one.
     "break_minutes": 15,
     "remind_after_minutes": 90,
+    # Weekdays that get the day-off norm in "Your time": "12-25" every year, "2026-12-24" just once.
+    "holidays": [],
     # Dashboard language: "en" is the template itself, anything else needs i18n/<lang>.json.
     "lang": "en",
     "strip_prefixes": [home_slug() + "-", home_slug()],
@@ -808,6 +810,7 @@ def build_data(history, cfg, now):
         "presence": history.get("presence", {}),
         "idle_minutes": cfg["idle_minutes"],
         "break_minutes": cfg["break_minutes"],
+        "holidays": cfg.get("holidays", []),
         "config_path": CONFIG_PATH,
         "refresh_url": REFRESH_URL if refresh_registered() else None,
     }

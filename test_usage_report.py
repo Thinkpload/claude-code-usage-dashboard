@@ -139,6 +139,14 @@ def test_aliases_fold_worktrees_into_their_project():
     assert set(hist["days"]["2026-09-01"]) == {"acme-api", "acme-api--worktrees-z1"}, "history is not rewritten"
 
 
+def test_holidays_reach_the_page():
+    """Dates from the config go into the page as is: its day norm drops to the day-off one on them."""
+    cfg = dict(CFG, holidays=["2026-09-02"])
+    data = ur.build_data({"days": {}}, cfg, datetime(2026, 9, 3, 12, tzinfo=ur.tz(cfg)))
+    assert data["holidays"] == ["2026-09-02"]
+    assert ur.build_data({"days": {}}, dict(CFG), datetime(2026, 9, 3, 12, tzinfo=ur.tz(CFG)))["holidays"] == []
+
+
 def test_home_slug_matches_claude_code_encoding():
     """The default strip_prefixes must peel the home path off a real log folder name."""
     cfg = dict(CFG)

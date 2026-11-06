@@ -55,6 +55,7 @@ pruning does not erase anything; renders a dashboard and can publish it as an ar
 | `observations` | `/usage` readings (`at`, `pct`, `fable_pct`, plus the 5-hour window `five_pct`, `five_reset`); collected automatically on every run; a plan's budget is the pooled ratio `Σ units ÷ Σ shares` over its readings (early-week points weigh by their size), in load units where Fable counts `fable_load` times its API price, `fable_load` fitted to the readings (1 below eight of them, or when it does not halve their error); a week with a reading of its own takes its budget from its latest one; the 5-hour window is sized the same way and drawn as ticks on the week's scale |
 | `week_reset` | the week's reset moment from `/usage`; windows are measured from it and a partial day is split along the activity profile. Without it, weeks start Monday |
 | `boosts` | promos applied to the weekly budget: `[{"from", "to", "factor"}]` |
+| `holidays` | weekdays that get the day-off norm (3 h, not 8 h) in "Your time": `["12-25", "2026-12-24"]`, `MM-DD` every year, a full date just once; applies to past weeks too, on the next build |
 | `factory_weekly_units_pro` | the factory guess used while there are no readings at all |
 | `token_weights` | per-model token weights (= API prices), used only for the limit |
 | `git_roots`, `git_authors` | where to look for local repos (`.git` no deeper than `depth`) and whose commits count (patterns for `git --author`); this is the "GitHub activity" on the dashboard |
