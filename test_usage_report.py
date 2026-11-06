@@ -95,6 +95,22 @@ def test_effort_splits_spend():
     assert hist["days"]["2026-09-01"]["acme-api"]["ins"]["effort_cells"]["max"]["claude-opus-5"]["lt50"][2] == 900
 
 
+CURRENT_MODELS = ["claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7",
+                  "claude-opus-4-6", "claude-sonnet-5-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-5-5", "claude-haiku-4-5"]
+
+
+def test_every_current_model_has_its_own_weights_and_label():
+    """A family prefix is only a fallback: claude-haiku-5-5 under claude-haiku costs 10x, claude-sonnet-5-5 under claude-sonnet-5 doubles cache reads."""
+    w, labels = ur.DEFAULT_CONFIG["token_weights"], ur.DEFAULT_CONFIG["model_labels"]
+    for m in CURRENT_MODELS:
+        assert m in w, m + " is weighted by prefix, not by its own row"
+        assert ur.weights_for(m, ur.DEFAULT_CONFIG) is w[m], m
+        assert m in labels, m + " has no label"
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.json"), encoding="utf8") as f:
+        example = json.load(f)
+    assert example["token_weights"] == w and example["model_labels"] == labels, "config.example.json drifted from DEFAULT_CONFIG"
+
+
 def test_groups_and_names():
     assert ur.project_name("c--Users-ann-code-acme-billing", CFG) == "acme-billing"
     assert ur.project_name("c--Users-ann", CFG) == "~"
