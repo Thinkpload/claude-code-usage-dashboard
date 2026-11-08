@@ -132,6 +132,8 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .dial .d-search{transform-box:view-box}
 @keyframes search{0%,100%{transform:rotate(-30deg)}20%{transform:rotate(22deg)}38%{transform:rotate(-12deg)}56%{transform:rotate(34deg)}76%{transform:rotate(-22deg)}90%{transform:rotate(6deg)}}
 @media (prefers-reduced-motion:no-preference){.dial .d-search{animation:search 7s ease-in-out infinite}}
+@keyframes sweep{from{transform:rotate(var(--from))}}
+@media (prefers-reduced-motion:no-preference){.dial .d-sweep{transform-box:view-box;animation:sweep 1.1s cubic-bezier(.3,1.35,.5,1) both}}
 .dial text{fill:var(--muted);font-size:12px;font-family:"Barlow Semi Condensed",var(--font)}
 .dial .d-read{font-size:40px;font-weight:600;letter-spacing:-.025em;fill:var(--now)}
 .dial .d-calm{font-size:15px;fill:var(--ink-2)}
@@ -148,6 +150,16 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .rail .cap{font-size:14px;color:var(--muted)}
 .rail .cap b{color:var(--ink-2);font-weight:500}
 .rail .pct{font-size:21px;font-weight:600;color:var(--ink);line-height:1}
+.rail .fold{margin-left:auto;padding:0;border:0;background:none;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
+.rail .fold::after{content:'▸';display:inline-block;margin-left:4px}
+.rail .fold[aria-expanded="true"]::after{transform:rotate(90deg)}
+/* 0fr ↔ 1fr animates the row's real height; the margin stands in for the rails' 17px gap, which cannot animate */
+#fable-wrap{display:grid;grid-template-rows:1fr;margin-top:17px}
+#fable-wrap>.rail{min-height:0;overflow:hidden;padding-bottom:5px;margin-bottom:-5px}
+#fable-wrap.shut{grid-template-rows:0fr;margin-top:0;opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  #fable-wrap{transition:grid-template-rows .3s ease,margin-top .3s ease,opacity .3s ease}
+  .rail .fold::after{transition:transform .3s ease}}
 .track{position:relative;height:16px;border-radius:3px;background:var(--surface-2);overflow:visible}
 .track.thin{height:10px}
 .track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:var(--accent)}
@@ -721,10 +733,12 @@ const DATA = /*__DATA__*/null;
     [K_LO, K_HI].forEach((v) => { const [x0, y0] = pt(ang(v), R - 9), [x1, y1] = pt(ang(v), R + 23); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'd-tick' }, s); });
     // the needles grow out of the axis; the thin dashed one is Fable, on its own budget and pace
     const needle = (v, cls, parent = s) => { const [ix, iy] = pt(ang(v), 5), [ox, oy] = pt(ang(v), R - 15); el('line', { x1: ix, y1: iy, x2: ox, y2: oy, class: cls }, parent); };
-    if (kF != null) needle(kF, 'd-needle-alt');
+    // on each render the needle swings up from the cold end to its reading
+    const sweep = (v) => el('g', { class: 'd-sweep', style: `--from:${A0 - ang(v)}deg;transform-origin:${cx}px ${cy}px` }, s);
+    if (kF != null) needle(kF, 'd-needle-alt', sweep(kF));
     // no pace yet: the needle searches back and forth, like a compass that has not settled
     if (k == null) needle((K_MIN + K_MAX) / 2, 'd-needle', el('g', { class: 'd-search', style: `transform-origin:${cx}px ${cy}px` }, s));
-    else needle(k, 'd-needle');
+    else needle(k, 'd-needle', sweep(k));
     el('circle', { cx, cy, r: 4.5, class: 'd-hub' }, s);
     // the reading sits below the axis: at “steady” the needle points up and would strike through it
     if (k != null) text(s, cx, cy + 36, '×' + ru(Math.max(k, kF ?? 0), 2), { 'text-anchor': 'middle', class: 'd-read' });
@@ -765,7 +779,7 @@ const DATA = /*__DATA__*/null;
     const open = parseAt(f5.reset) > now;
     return { ...f5, step: 100 * f5.budget / cur.budget, open, fit: (open ? 1 : 0) + Math.floor(Math.max(0, reset - (open ? parseAt(f5.reset) : now)) / 18e6) };
   }
-  let dueClock;
+  let dueClock, fableOpen = false;   // the Fable row is folded under the main bar; the choice survives re-renders
   function weekInstrument() {
     const host = $('week');
     const cur = DATA.weeks[DATA.weeks.length - 1];
@@ -815,11 +829,11 @@ const DATA = /*__DATA__*/null;
       }
     }
 
-    const rail = (id, label, pct, units, budget, thin, marks = '') =>
+    const rail = (id, label, pct, units, budget, thin, marks = '', head = '') =>
       `<div class="rail" id="${id}">
          <div class="rail-head">
            <span class="cap">${label}, ${budget != null ? `<b>${ru(units, 0)}</b> of <b>${ru(budget, 0)}</b> units` : `<b>${ru(units, 0)}</b> units against an unknown budget`}</span>
-           <span class="pct">${pct == null ? '—' : ru(pct, 0) + ' %'}</span>
+           ${head}<span class="pct">${pct == null ? '—' : ru(pct, 0) + ' %'}</span>
          </div>
          <div class="track${thin ? ' thin' : ''}">
            <i class="${thin ? 'alt' : ''}${(pct ?? 0) >= 100 ? ' full' : ''}" style="width:${Math.min(100, pct ?? 0)}%"></i>
@@ -861,24 +875,25 @@ const DATA = /*__DATA__*/null;
          <div class="track thin"><i class="${bm.pct >= 100 ? 'full' : ''}" style="width:${Math.min(100, bm.pct)}%"></i>${bmNotches}<b class="due"></b></div>
        </div>`;
 
-    const boost = cur.boost > 1 ? ` This week's budget is raised by a promo of ${ru((cur.boost - 1) * 100, 0)} %.` : '';
     host.innerHTML =
       `<figure class="dial" id="dial"></figure>
        <div class="w-read">
          <p class="w-call">${call}</p>
          <p class="w-line">${line}</p>
          <div class="w-rails">
-           ${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false, f5ticks.map((x) => `<b class="h5" style="left:${x.toFixed(1)}%"></b>`).join(''))}
-           ${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}
+           <div>${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false, f5ticks.map((x) => `<b class="h5" style="left:${x.toFixed(1)}%"></b>`).join(''),
+             `<button type="button" class="fold" id="fable-fold" aria-controls="fable-wrap" aria-expanded="${fableOpen}">Fable ${cur.fable_pct == null ? '—' : ru(cur.fable_pct, 0) + ' %'}</button>`)}
+           <div id="fable-wrap"${fableOpen ? '' : ' class="shut" inert'}>${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}</div></div>
            ${bmRail}
            ${ccRail}
          </div>
          <p class="w-keys"><span><i class="k-due"></i>where you should be now</span>
             <span><i class="k-sol"></i>all models</span><span><i class="k-dsh"></i>Fable</span>${f5ticks.length ? '<span><i class="k-h5"></i>one more 5-hour window</span>' : ''}${bmNotches ? '<span><i class="k-wk"></i>limit weeks of the month</span>' : ''}</p>
-         <p class="w-foot">${cur.plan_label}, week ${fmtDate(cur.start)}–${fmtDate(cur.end)}, reset ${DOW_WHEN[(reset.getDay() + 6) % 7]} ${fmtDate(cur.end)}, ${hhmm(reset)}.${boost}</p>
+         <p class="w-foot">${cur.plan_label}, week ${fmtDate(cur.start)}–${fmtDate(cur.end)}, reset ${DOW_WHEN[(reset.getDay() + 6) % 7]} ${fmtDate(cur.end)}, ${hhmm(reset)}.</p>
        </div>`;
 
     paceDial($('dial'), { k, kF, calm });
+    $('fable-fold').addEventListener('click', (e) => { fableOpen = !fableOpen; e.currentTarget.setAttribute('aria-expanded', fableOpen); const w = $('fable-wrap'); w.classList.toggle('shut', !fableOpen); w.inert = !fableOpen; });
     // only the "due now" marks run on the clock: the bars, the pace and the verdict stay at the build, the moment their numbers are from
     const tickDue = () => {
       const t = new Date(), p = planAt(t), pos = (100 * p).toFixed(1) + '%', label = $('rail-all-due');
