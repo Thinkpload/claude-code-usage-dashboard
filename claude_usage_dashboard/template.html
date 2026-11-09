@@ -820,13 +820,13 @@ const DATA = /*__DATA__*/null;
         line = moment
           ? `You will hit the limit <b>${whenPhrase(moment, now)}</b> and you will be doing without it until the reset for <b>${dur(reset - moment)}</b>.`
           : `The reset is in <b>${left}</b> the limit will not stretch.`;
-        // idle from now on: the plan catches up with the frozen usage (×1.00) once plan(t) = actual
-        calm = hitMoment(planAt, now, reset, 100 / Math.max(cur.pct, cur.fable_pct ?? 0));
       } else if (heat === 'cold') {
         line = `By the reset in <b>${left}</b> roughly <b>${ru(Math.max(0, 100 - lead * 100), 0)} %</b> of the weekly budget unused.`;
       } else {
         line = `Hold this: by the reset in <b>${left}</b> you land almost exactly on 100 %.`;
       }
+      // idle from now on: the plan catches up with the frozen usage (×1.00) once plan(t) = actual; shown while the pace is above ×1
+      if (lead > 1) calm = hitMoment(planAt, now, reset, 100 / Math.max(cur.pct, cur.fable_pct ?? 0));
     }
 
     const rail = (id, label, pct, units, budget, thin, marks = '', head = '') =>

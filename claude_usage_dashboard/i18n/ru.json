@@ -122,7 +122,7 @@
  "// whenPhrase without its \"around\": the caption is too short for hedging": "// whenPhrase без «около»: в подписи нет места для оговорок",
  "// the countdown to plan under the dial runs on the clock too; the moment itself is from the build, assuming no work since": "// отсчёт до плана под циферблатом тоже идёт по часам; сам момент — со сборки, в предположении, что работы с тех пор не было",
  "// when an idle week is back on plan: filled in and kept current by the week's clock": "// когда неделя без работы вернётся в план: текст вписывают и обновляют часы недели",
- "// idle from now on: the plan catches up with the frozen usage (×1.00) once plan(t) = actual": "// с этого момента простой: план догонит замерший расход (×1,00), когда план(t) = факт",
+ "// idle from now on: the plan catches up with the frozen usage (×1.00) once plan(t) = actual; shown while the pace is above ×1": "// с этого момента простой: план догонит замерший расход (×1,00), когда план(t) = факт; показываем, пока темп выше ×1",
  "`By the reset in <": "`К сбросу через <",
  "> roughly <": "> неиспользованными останутся примерно <",
  "> of the weekly budget unused.`": "> недельного бюджета.`",
