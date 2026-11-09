@@ -111,6 +111,24 @@ def test_every_current_model_has_its_own_weights_and_label():
     assert example["token_weights"] == w and example["model_labels"] == labels, "config.example.json drifted from DEFAULT_CONFIG"
 
 
+def test_user_weights_and_labels_add_to_the_defaults():
+    """A config.json with its own token_weights or model_labels still gets models added to the code later."""
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            mine = {"input": 1, "cache_create": 1, "cache_read": 0, "output": 1}
+            ur.save_json(ur.CONFIG_PATH, {"token_weights": {"claude-opus-5": mine}, "model_labels": {"claude-opus-5": "Mine"}})
+            cfg = ur.load_config()
+        finally:
+            ur.set_out_dir(old)
+    assert cfg["token_weights"]["claude-opus-5"] == mine and cfg["model_labels"]["claude-opus-5"] == "Mine", "the user's own entry wins"
+    for k in ("token_weights", "model_labels"):
+        for m, v in ur.DEFAULT_CONFIG[k].items():
+            if m != "claude-opus-5":
+                assert cfg[k].get(m) == v, k + ": " + m + " lost"
+
+
 def test_groups_and_names():
     assert ur.project_name("c--Users-ann-code-acme-billing", CFG) == "acme-billing"
     assert ur.project_name("c--Users-ann", CFG) == "~"

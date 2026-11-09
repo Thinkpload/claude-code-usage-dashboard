@@ -165,7 +165,12 @@ def progress(run, stage, pct):
 
 def load_config():
     cfg = dict(DEFAULT_CONFIG)
-    cfg.update(load_json(CONFIG_PATH, {}))
+    user = load_json(CONFIG_PATH, {})
+    cfg.update(user)
+    # Models added to the code still reach a config.json that lists its own; the user's entry wins per key.
+    for k in ("token_weights", "model_labels"):
+        if isinstance(user.get(k), dict):
+            cfg[k] = {**DEFAULT_CONFIG[k], **user[k]}
     if not os.path.exists(CONFIG_PATH):
         save_json(CONFIG_PATH, cfg)
     return cfg
