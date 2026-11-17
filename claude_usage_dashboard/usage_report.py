@@ -165,7 +165,12 @@ def progress(run, stage, pct):
 
 def load_config():
     cfg = dict(DEFAULT_CONFIG)
-    cfg.update(load_json(CONFIG_PATH, {}))
+    user = load_json(CONFIG_PATH, {})
+    cfg.update(user)
+    # Models added to the code still reach a config.json that lists its own; the user's entry wins per key.
+    for k in ("token_weights", "model_labels"):
+        if isinstance(user.get(k), dict):
+            cfg[k] = {**DEFAULT_CONFIG[k], **user[k]}
     if not os.path.exists(CONFIG_PATH):
         save_json(CONFIG_PATH, cfg)
     return cfg
@@ -460,12 +465,32 @@ def merge(history, fresh, presence=None):
     return history
 
 
-def weights_for(model, cfg):
+def weight_key(model, cfg):
+    """The token_weights row a model is priced by: its own, the longest matching prefix, or "default"."""
     w = cfg["token_weights"]
     for prefix in sorted((k for k in w if k != "default"), key=len, reverse=True):
         if model.startswith(prefix):
-            return w[prefix]
-    return w["default"]
+            return prefix
+    return "default"
+
+
+def weights_for(model, cfg):
+    return cfg["token_weights"][weight_key(model, cfg)]
+
+
+def model_warnings(data, cfg, days_back=30):
+    """Models of the last days that are priced by someone else's row or shown without a label: say so, not silently."""
+    cut = (datetime.strptime(data["today"], "%Y-%m-%d") - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    seen = {m for d in data["days"] if d["d"] > cut for v in d["p"].values()
+            for m, x in v["models"].items() if units_of({m: x}, cfg) > 0}
+    out = []
+    for m in sorted(seen):
+        k = weight_key(m, cfg)
+        if k != m:
+            out.append(f"Warning: {m} is weighted as {k} - check the prices (token_weights in config.json)")
+        if m not in cfg["model_labels"]:
+            out.append(f"Warning: {m} has no label in model_labels - the dashboard shows it as {m.replace('claude-', '', 1)!r}")
+    return out
 
 
 def units_of(models, cfg):
@@ -1150,6 +1175,8 @@ def main(argv=None):
         step("render", 95)
         paths, missing = render(data, args.lang or cfg.get("lang", "en"))
         print(summary(data))
+        for w in model_warnings(data, cfg):
+            print(w)
         if missing:
             print(f"Untranslated: {len(missing)} entries in the table no longer match the template, e.g. {missing[0][:60]!r}")
         step("done", 100)

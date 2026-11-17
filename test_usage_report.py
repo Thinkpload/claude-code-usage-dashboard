@@ -111,6 +111,40 @@ def test_every_current_model_has_its_own_weights_and_label():
     assert example["token_weights"] == w and example["model_labels"] == labels, "config.example.json drifted from DEFAULT_CONFIG"
 
 
+def test_user_weights_and_labels_add_to_the_defaults():
+    """A config.json with its own token_weights or model_labels still gets models added to the code later."""
+    old = ur.OUT_DIR
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            ur.set_out_dir(tmp)
+            mine = {"input": 1, "cache_create": 1, "cache_read": 0, "output": 1}
+            ur.save_json(ur.CONFIG_PATH, {"token_weights": {"claude-opus-5": mine}, "model_labels": {"claude-opus-5": "Mine"}})
+            cfg = ur.load_config()
+        finally:
+            ur.set_out_dir(old)
+    assert cfg["token_weights"]["claude-opus-5"] == mine and cfg["model_labels"]["claude-opus-5"] == "Mine", "the user's own entry wins"
+    for k in ("token_weights", "model_labels"):
+        for m, v in ur.DEFAULT_CONFIG[k].items():
+            if m != "claude-opus-5":
+                assert cfg[k].get(m) == v, k + ": " + m + " lost"
+
+
+def test_models_without_their_own_weights_or_label_are_reported():
+    """A model priced by a family row or by "default", or shown without a label, gets a warning in the run's output."""
+    cfg = dict(ur.DEFAULT_CONFIG, token_weights={k: v for k, v in ur.DEFAULT_CONFIG["token_weights"].items() if k != "claude-opus-5-5"})
+    tok = {"calls": 1, "input": 10, "cache_create": 0, "cache_read": 0, "output": 100}
+    models = {"claude-opus-5": tok, "claude-opus-5-5": tok, "gpt-x": tok, "claude-sonnet-9": dict(tok, input=0, output=0)}
+    data = {"today": "2026-11-16", "days": [{"d": "2026-11-15", "p": {"acme": {"models": models}}},
+                                            {"d": "2026-09-01", "p": {"acme": {"models": {"claude-haiku-9": tok}}}}]}
+    out = ur.model_warnings(data, cfg)
+    assert not any(w.startswith("Warning: claude-opus-5 ") for w in out), "exact weights and a label: silent"
+    assert any("claude-opus-5-5 is weighted as claude-opus-5 " in w for w in out), "matched by the longest prefix"
+    assert any("gpt-x is weighted as default " in w for w in out), "matched by default"
+    assert any("gpt-x has no label" in w for w in out) and not any("claude-opus-5-5 has no label" in w for w in out)
+    assert not any("claude-sonnet-9" in w or "claude-haiku-9" in w for w in out), "no spend, or older than the window: silent"
+    assert ur.weights_for("claude-opus-5-5", cfg) == cfg["token_weights"]["claude-opus-5"]
+
+
 def test_groups_and_names():
     assert ur.project_name("c--Users-ann-code-acme-billing", CFG) == "acme-billing"
     assert ur.project_name("c--Users-ann", CFG) == "~"
