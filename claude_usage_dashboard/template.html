@@ -91,6 +91,8 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .tools svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .tools button[hidden]{display:none}
 .top .eyebrow{padding-right:112px}
+.tools .built{align-self:center;font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:nowrap}
+@media (max-width:640px){.tools{flex-wrap:wrap;justify-content:flex-end;width:98px}.tools .built{order:1;font-size:10.5px;white-space:normal;text-align:right}}
 .refresh.busy{cursor:progress;color:var(--accent)}
 .refresh.failed{border-color:var(--bad);color:var(--bad)}
 .refresh.stale{border-color:var(--bad);color:var(--bad);box-shadow:0 0 14px 3px color-mix(in srgb,var(--bad) 55%,transparent)}
@@ -151,7 +153,9 @@ a:hover{color:color-mix(in srgb,var(--accent) 80%,#fff)}
 .rail .cap{font-size:14px;color:var(--muted)}
 .rail .cap b{color:var(--ink-2);font-weight:500}
 .rail .pct{font-size:21px;font-weight:600;color:var(--ink);line-height:1}
-.rail .fold{margin-left:auto;padding:0;border:0;background:none;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
+.rail .fold{margin-left:auto;padding:4px 11px;border:1px solid var(--axis);border-radius:999px;background:var(--surface-2);font:inherit;font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.rail .fold:hover{border-color:var(--accent);color:var(--ink)}
+.rail .fold:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .rail .fold::after{content:'▸';display:inline-block;margin-left:4px}
 .rail .fold[aria-expanded="true"]::after{transform:rotate(90deg)}
 /* 0fr ↔ 1fr animates the row's real height; the margin stands in for the rails' 17px gap, which cannot animate */
@@ -482,6 +486,7 @@ footer.method b{color:var(--ink-2)}
       <nav class="periods" id="periods" aria-label="Period"></nav>
     </div>
     <div class="tools">
+      <span class="built" id="built"></span>
       <button type="button" class="refresh" id="refresh" hidden title="Rebuild the dashboard now from the latest logs" aria-label="refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></button>
       <div class="refresh-status" id="refresh-status" role="status" aria-live="polite" hidden><b><i></i></b><span></span></div>
       <button type="button" class="theme" id="theme"></button>
@@ -782,7 +787,8 @@ const DATA = /*__DATA__*/null;
     const open = parseAt(f5.reset) > now;
     return { ...f5, step: 100 * f5.budget / cur.budget, open, fit: (open ? 1 : 0) + Math.floor(Math.max(0, reset - (open ? parseAt(f5.reset) : now)) / 18e6) };
   }
-  let dueClock, fableOpen = false;   // the Fable row is folded under the main bar; the choice survives re-renders
+  let dueClock, fableOpen = false;   // the Fable row is folded under the main bar; the choice survives re-renders and reloads
+  try { fableOpen = localStorage.getItem('ccusage.fable') === 'open'; } catch (e) { /* no storage */ }
   function weekInstrument() {
     const host = $('week');
     const cur = DATA.weeks[DATA.weeks.length - 1];
@@ -886,7 +892,7 @@ const DATA = /*__DATA__*/null;
          <p class="w-line">${line}</p>
          <div class="w-rails">
            <div>${rail('rail-all', 'All models', cur.pct, cur.units, cur.budget, false, f5ticks.map((x) => `<b class="h5" style="left:${x.toFixed(1)}%"></b>`).join(''),
-             `<button type="button" class="fold" id="fable-fold" aria-controls="fable-wrap" aria-expanded="${fableOpen}">Fable ${cur.fable_pct == null ? '—' : ru(cur.fable_pct, 0) + ' %'}</button>`)}
+             `<button type="button" class="fold" id="fable-fold" title="Show or hide the Fable row" aria-controls="fable-wrap" aria-expanded="${fableOpen}">Fable ${cur.fable_pct == null ? '—' : ru(cur.fable_pct, 0) + ' %'}</button>`)}
            <div id="fable-wrap"${fableOpen ? '' : ' class="shut" inert'}>${rail('rail-fable', 'Fable (own budget)', cur.fable_pct, cur.fable_units, cur.fable_budget, true)}</div></div>
            ${bmRail}
            ${ccRail}
@@ -897,7 +903,9 @@ const DATA = /*__DATA__*/null;
        </div>`;
 
     paceDial($('dial'), { k, kF, calm });
-    $('fable-fold').addEventListener('click', (e) => { fableOpen = !fableOpen; e.currentTarget.setAttribute('aria-expanded', fableOpen); const w = $('fable-wrap'); w.classList.toggle('shut', !fableOpen); w.inert = !fableOpen; });
+    // the button sits inside the main bar: its tip is about the bar, not the button
+    $('fable-fold').addEventListener('mouseenter', () => { tip.hidden = true; });
+    $('fable-fold').addEventListener('click', (e) => { fableOpen = !fableOpen; try { localStorage.setItem('ccusage.fable', fableOpen ? 'open' : 'shut'); } catch (x) { /* no storage */ } e.currentTarget.setAttribute('aria-expanded', fableOpen); const w = $('fable-wrap'); w.classList.toggle('shut', !fableOpen); w.inert = !fableOpen; });
     const pos = (100 * plan).toFixed(1) + '%', label = $('rail-all-due');
     host.querySelectorAll('#rail-all .due, #rail-fable .due').forEach((n) => { n.style.left = pos; });
     label.style.left = pos; label.style.transform = `translateX(-${pos})`; label.textContent = ru(plan * 100, 0) + ' %';
@@ -1614,7 +1622,10 @@ const DATA = /*__DATA__*/null;
   function header(A) {
     const first = A.days.length ? A.days[0].d : '—', last = A.days.length ? A.days[A.days.length - 1].d : '—';
     $('range').textContent = `${current.label}: ${fmtDate(first)} — ${fmtDate(last)} · ${A.days.length} days with activity`;
-    $('eyebrow').textContent = `Claude Code · built ${DATA.generated} · ${DATA.limits.plan_now}`;
+    $('eyebrow').textContent = `Claude Code · ${DATA.limits.plan_now}`;
+    // how old the numbers are, ticking on; the exact moment stays in the tooltip
+    const age = () => { const ms = Date.now() - parseAt(DATA.generated); $('built').textContent = `built ${ms < 36e5 ? Math.max(1, Math.floor(ms / 6e4)) + ' min' : dur(ms)} ago`; };
+    $('built').title = DATA.generated; age(); setInterval(age, 6e4);
     $('periods').innerHTML = periods.map((p) => `<button type="button" id="p-${p.id}" data-id="${p.id}" aria-pressed="${p.id === current.id}">${p.label}</button>`).join('');
     $('periods').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { current = periods.find((p) => p.id === b.dataset.id); try { localStorage.setItem('ccusage.period', current.id); } catch (e) { /* no storage */ } render(); }));
   }
